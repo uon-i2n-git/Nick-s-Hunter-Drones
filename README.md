@@ -40,7 +40,7 @@ Produces a single self-contained `index.html` that runs by double-clicking, with
 | Key | Action |
 |---|---|
 | `Space` | Climb |
-| `Ctrl` | Descend |
+| `Ctrl` / `C` | Descend (`C` because browsers reserve some `Ctrl` combos) |
 | `W` `A` `S` `D` | Translate |
 | `Q` `E` | Yaw |
 | `Shift` | Boost |
@@ -54,6 +54,17 @@ Produces a single self-contained `index.html` that runs by double-clicking, with
 ## Stack
 
 Vite, React, TypeScript, three.js via React Three Fiber. Physics is hand written, no engine. Deployed to GitHub Pages via Actions.
+
+---
+
+## Verification
+
+The flight model is tuned against logged numbers, not by eye:
+
+```bash
+npm run measure                                  # feel targets + battery times
+node --experimental-strip-types tools/verify.ts  # autopilot flies full races + intercept
+```
 
 ---
 
