@@ -246,7 +246,8 @@ export function Harbour({ weather }: { weather: WeatherDef }) {
     <group>
       <Sky weather={weather} />
       <Water weather={weather} />
-      <hemisphereLight args={['#b9cbd8', '#2a3138', weather.hemiIntensity]} />
+      <hemisphereLight args={['#b9cbd8', '#3a424a', weather.hemiIntensity]} />
+      <ambientLight intensity={0.22} />
 
       {WHARVES.map((wh, i) => (
         <group key={i}>

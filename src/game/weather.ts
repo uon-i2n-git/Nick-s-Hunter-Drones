@@ -28,8 +28,8 @@ export const WEATHERS: Record<WeatherId, WeatherDef> = {
     skyBottom: '#b8ccd8',
     fogColor: '#b0c4d0',
     fogDensity: 0.00035, // ~8 km visibility
-    sunIntensity: 2.6,
-    hemiIntensity: 0.85,
+    sunIntensity: 3.0,
+    hemiIntensity: 1.05,
     whitecaps: 0,
   },
   gusty: {
@@ -41,8 +41,8 @@ export const WEATHERS: Record<WeatherId, WeatherDef> = {
     skyBottom: '#828d96',
     fogColor: '#828d96',
     fogDensity: 0.0011,
-    sunIntensity: 1.2,
-    hemiIntensity: 0.75,
+    sunIntensity: 1.9,
+    hemiIntensity: 1.15,
     whitecaps: 1,
   },
 }
