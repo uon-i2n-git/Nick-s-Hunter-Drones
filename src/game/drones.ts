@@ -68,6 +68,10 @@ export interface DroneDef {
     load: number
     label: string // endurance line for the report
   }
+  /** race-mode drain multiplier. The spec battery times cannot physically
+   *  cover 3 laps for the short-endurance airframes, so racing runs on a
+   *  reduced drain sized so a clean bronze-pace run just finishes. */
+  raceDrain: number
 }
 
 const KESTREL: DroneDef = {
@@ -103,7 +107,8 @@ const KESTREL: DroneDef = {
   motorTau: 0.06,
   // m*g*tan(35deg) / 24^2
   kDrag: 0.0227,
-  windSens: 2.2,
+  // 11 m/s southerly ~ its rated 12 m/s limit: upwind speed drops to ~10 m/s
+  windSens: 1.3,
   inertia: [0.021, 0.034, 0.021],
   yawTorquePerThrust: 0.15,
 
@@ -123,8 +128,9 @@ const KESTREL: DroneDef = {
   kAltP: 4,
   kAltD: 3,
 
-  // full battery ~4:00 in normal flying (compressed ~10x against the 42 min spec)
-  battery: { idle: 0.00167, load: 0.0025, label: '4:00 nominal' },
+  // full battery ~4:00 at cruise (compressed ~10x against the 42 min spec)
+  battery: { idle: 0.00167, load: 0.00282, label: '4:00 nominal' },
+  raceDrain: 0.7,
 }
 
 const CLYDESDALE: DroneDef = {
@@ -156,8 +162,8 @@ const CLYDESDALE: DroneDef = {
   }),
   twr: 1.9,
   motorTau: 0.22,
-  // m_loaded*g*tan(20deg) / 16^2
-  kDrag: 0.335,
+  // m_unloaded*g*tan(20deg) / 16^2 (top speed command-limited to 16 loaded)
+  kDrag: 0.2232,
   windSens: 0.15,
   inertia: [4.6, 7.4, 4.6],
   yawTorquePerThrust: 0.2,
@@ -179,7 +185,8 @@ const CLYDESDALE: DroneDef = {
   kAltD: 2.4,
 
   // ~2:30 unloaded, ~1:30 with the 8 kg crate on the hook
-  battery: { idle: 0.00136, load: 0.00531, label: '2:30 · 1:30 loaded' },
+  battery: { idle: 0.00121, load: 0.00645, label: '2:30 · 1:30 loaded' },
+  raceDrain: 0.45,
 }
 
 const PEREGRINE: DroneDef = {
@@ -236,7 +243,8 @@ const PEREGRINE: DroneDef = {
   kAltD: 4,
 
   // ~1:30 patrol, ~0:35 under continuous boost
-  battery: { idle: 0.00778, load: 0.00198, label: '1:30 · 0:35 boost' },
+  battery: { idle: 0.0071, load: 0.00271, label: '1:30 · 0:35 boost' },
+  raceDrain: 0.3,
 }
 
 export const DRONES: Record<DroneId, DroneDef> = {

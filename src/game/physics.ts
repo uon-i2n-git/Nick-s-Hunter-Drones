@@ -102,13 +102,15 @@ export interface FlightEnv {
   groundAt: (x: number, z: number) => number
   /** soft geofence: radius where pushback starts */
   fenceRadius: number
+  /** battery drain multiplier (race mode runs at 0.85 so a full race fits) */
+  drainScale?: number
 }
 
-export function spawnState(def: DroneDef, pos: V3): DroneState {
+export function spawnState(def: DroneDef, pos: V3, yaw = 0): DroneState {
   return {
     pos: { ...pos },
     vel: v3(),
-    quat: { x: 0, y: 0, z: 0, w: 1 },
+    quat: { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) },
     angVel: v3(),
     rotorOmega: def.rotors.map(() => 0.4),
     targetAlt: pos.y,
@@ -161,8 +163,9 @@ export function stepDrone(
   const vWant = stick * speed
   const spdCmd = vWant + (def.kDrag * vWant * vWant) / (mass * def.kVel)
   const inv = stick > 0 ? spdCmd / stick : 0
-  const vdx = (ix * cy - iz * -sy) * inv
-  const vdz = (ix * -sy + iz * -cy) * inv // forward is -Z
+  // world velocity = R_yaw * body(ix, 0, -iz); forward is -Z
+  const vdx = (ix * cy - iz * sy) * inv
+  const vdz = (-ix * sy - iz * cy) * inv
 
   const evx = vdx - s.vel.x
   const evz = vdz - s.vel.z
@@ -318,14 +321,18 @@ export function stepDrone(
     s.landed = false
   }
 
-  // battery: drain scales with power draw ~ (T / spawn weight)^1.5
+  // battery: drain scales with power draw ~ (T / spawn weight)^1.5, with
+  // translational-lift relief — fast forward flight draws less induced power
   const xLoad = thrust / (def.mass * G)
-  s.battery = Math.max(0, s.battery - (def.battery.idle + def.battery.load * Math.pow(xLoad, 1.5)) * dt)
+  const relief = 1 - 0.25 * Math.min(1, Math.hypot(rvx, rvz) / def.topSpeed)
+  const rate = def.battery.idle + def.battery.load * Math.pow(xLoad, 1.5) * relief
+  s.battery = Math.max(0, s.battery - rate * (env.drainScale ?? 1) * dt)
 }
 
 /** estimated seconds of battery left at the current draw */
-export function batterySecondsLeft(s: DroneState, def: DroneDef): number {
+export function batterySecondsLeft(s: DroneState, def: DroneDef, drainScale = 1): number {
   const xLoad = s.thrust / (def.mass * G)
-  const rate = def.battery.idle + def.battery.load * Math.pow(xLoad, 1.5)
+  const relief = 1 - 0.25 * Math.min(1, Math.hypot(s.vel.x, s.vel.z) / def.topSpeed)
+  const rate = (def.battery.idle + def.battery.load * Math.pow(xLoad, 1.5) * relief) * drainScale
   return s.battery / Math.max(rate, 1e-6)
 }
