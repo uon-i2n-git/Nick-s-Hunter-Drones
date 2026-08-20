@@ -92,7 +92,7 @@ export function Water({ weather }: { weather: WeatherDef }) {
   })
   return (
     <mesh rotation-x={-Math.PI / 2} position={[0, 0, 0]}>
-      <planeGeometry args={[1700, 1700, 1, 1]} />
+      <planeGeometry args={[2200, 2200, 1, 1]} />
       <shaderMaterial ref={mat} vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} />
     </mesh>
   )

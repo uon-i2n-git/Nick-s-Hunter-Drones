@@ -49,7 +49,23 @@ function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = n
   let staged = false
   let backwardsDone = false
   let falseCount = false
+  let airborne = false
+  let lastCrashes = 0
   while (!sim.result && steps < maxSteps) {
+    if (sim.crashes !== lastCrashes) {
+      lastCrashes = sim.crashes
+      airborne = false // respawned on the pad — take off again
+    }
+    // vertical takeoff first: the pad sits behind the berthed carriers, so
+    // climb above their hulls before setting off (a human does this too)
+    if (!airborne) {
+      if (sim.state.pos.y >= 12) airborne = true
+      else {
+        sim.step({ Space: sim.state.targetAlt < 13 })
+        steps++
+        continue
+      }
+    }
     const r = sim.race!
     let gi = r.nextGate
     if (skipGate !== null && gi === skipGate) gi = (gi + 1) % GATES.length // deliberately miss one
@@ -89,8 +105,14 @@ function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = n
       const aimGi = along > 8 ? (gi + 1) % GATES.length : gi
       const ag = GATES[aimGi]
       const lead = 6
+      // stay above hull height while far out, drop to ring height on approach
+      const dAim = Math.hypot(ag.pos.x - s.pos.x, ag.pos.z - s.pos.z)
+      const aimY = dAim > 60 ? Math.max(ag.pos.y + 0.5, 12) : ag.pos.y + 0.5
       // boost overshoots the clydesdale's 34 m turn radius into scenery
-      steerTo(sim, ag.pos.x + ag.normal.x * lead, ag.pos.y + 0.5, ag.pos.z + ag.normal.z * lead, keys, drone !== 'clydesdale')
+      steerTo(sim, ag.pos.x + ag.normal.x * lead, aimY, ag.pos.z + ag.normal.z * lead, keys, drone !== 'clydesdale')
+      // a loaded clydesdale sinks under full forward command — ease off and
+      // recover height instead of mushing into a ship hull, like a human would
+      if (s.pos.y < aimY - 3 && s.vel.y < 0) keys.KeyW = false
     } else {
       // stage before the gate, bleed speed, then a straight slow run through
       const stageDist = 38

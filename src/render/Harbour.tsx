@@ -74,7 +74,7 @@ const DIRT = new THREE.Color('#7d7358')
 
 function Terrain() {
   const mesh = useMemo(() => {
-    const x0 = -330, x1 = 700, z0 = -480, z1 = 480, step = 18
+    const x0 = -900, x1 = 700, z0 = -480, z1 = 480, step = 18
     const nx = Math.ceil((x1 - x0) / step)
     const nz = Math.ceil((z1 - z0) / step)
     const geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz)
@@ -92,7 +92,6 @@ function Terrain() {
       const nearBeach = x < -215 && x > -330 && z < -125 && z > -190
       if (h === 0) c.copy(ASPHALT)
       else if (nearBeach) c.set('#c4ad7e').offsetHSL(0, 0, (rnd() - 0.5) * 0.04)
-      else if (h === 3 && z > 0) c.copy(rnd() < 0.45 ? GRASS2 : ASPHALT).offsetHSL(0, 0, (rnd() - 0.5) * 0.05) // office campus
       else if (h === 3) c.copy(rnd() < 0.6 ? ASPHALT : DIRT).offsetHSL(0, 0, (rnd() - 0.5) * 0.05)
       else c.copy(rnd() < 0.75 ? GRASS : GRASS2).offsetHSL(0, (rnd() - 0.5) * 0.05, (rnd() - 0.5) * 0.06)
       colors[i * 3] = c.r
@@ -125,8 +124,9 @@ function Shoreline() {
         if (revet) rockItems.push({ m: mat4(x, 0.8, z, ry, segLen + 2, 2.2, 4) })
       }
     }
-    // basin edges (the wharves + apron cover the south x -150..150 and north)
-    addRun(-310, 140, -152, 140, 5, true) // south-west revetment
+    // basin edges (the boardwalk covers the south x -150..150, the apron the north)
+    addRun(-310, 140, -152, 140, 5, false) // south-west foreshore edge
+    addRun(-150, 143, 150, 143, 6, false) // along the Honeysuckle boardwalk front
     addRun(-310, -20, -310, 138, 5, true) // west end of the basin (south half)
     addRun(-310, -126, -240, -126, 4, false) // the sandy beach shoreline
     addRun(-310, -126, -310, -24, 3, false)
@@ -640,6 +640,24 @@ function Foreshore() {
         c: new THREE.Color(palm ? '#4e7a3a' : '#3c5e33'),
       })
     }
+    // the same treatment continues along the south basin shore (Honeysuckle):
+    // lamps on the boardwalk lip, palms on the grass rise behind it
+    for (let x = -290; x <= 145; x += 15) {
+      const gy = terrainHeight(x, 148)
+      poleItems.push({ m: mat4(x, gy + 2.6, 148) })
+      lampItems.push({ m: mat4(x, gy + 5.1, 148) })
+    }
+    for (let x = -285; x <= 140; x += 12) {
+      const palm = rnd() < 0.7
+      const h = palm ? 5.5 + rnd() * 2.5 : 3 + rnd()
+      const z = 156 + rnd() * 4
+      const gy = terrainHeight(x, z)
+      trunkItems.push({ m: mat4(x + (rnd() - 0.5) * 4, gy + h / 2, z, 0, 1, h / 6, 1) })
+      crownItems.push({
+        m: mat4(x + (rnd() - 0.5) * 4, gy + h + (palm ? 0.6 : 1.6), z, rnd() * 3, palm ? 1 : 2.2, palm ? 0.8 : 1.7, palm ? 1 : 2.2),
+        c: new THREE.Color(palm ? '#4e7a3a' : '#3c5e33'),
+      })
+    }
     // sea walls: both gorge banks + the basin's east corner
     const wallItems: Inst[] = [
       { m: mat4(395, 2, 69.5, 0, 490, 4.6, 3.5) },
@@ -666,8 +684,12 @@ function Foreshore() {
     for (const cz of [-105, -160, -215]) {
       roadItems.push({ m: mat4(300, terrainHeight(300, cz) + 0.35, cz, 0, 240, 0.14, 7) })
     }
-    roadItems.push({ m: mat4(-85, 3.06, 210, 0, 460, 0.14, 8) }) // port back road
+    // foreshore drive along the south shore, seated on the rise
+    for (let cx = -280; cx <= 140; cx += 42) {
+      roadItems.push({ m: mat4(cx, terrainHeight(cx, 158) + 0.12, 158, 0, 44, 0.14, 7) })
+    }
     roadItems.push({ m: mat4(-80, 3.06, -186, 0, 450, 0.14, 8) }) // behind the apron
+    roadItems.push({ m: mat4(-80, 3.06, -252, 0, 450, 0.14, 8) }) // through the back flats
     return {
       poles: makeInstanced(new THREE.CylinderGeometry(0.09, 0.12, 5.2, 6), new THREE.MeshStandardMaterial({ color: '#454c53' }), poleItems),
       lamps: makeInstanced(new THREE.SphereGeometry(0.22, 6, 5), new THREE.MeshStandardMaterial({ color: '#fff2c0', emissive: '#ffdf90', emissiveIntensity: 1.6 }), lampItems),
@@ -764,6 +786,7 @@ function PortProps() {
     const shedItems: Inst[] = []
     const shedSpots: Array<[number, number, number]> = [
       [-90, -244, 0], [120, -244, 0.05], [-190, -244, 0], [110, -168, 0.1],
+      [-20, -284, 0.05], [-250, -280, 0], [100, -286, 0],
     ]
     for (const [x, z, r] of shedSpots) {
       shedItems.push({ m: mat4(x, 3 + 5, z, r, 40 + rnd() * 10, 10, 18 + rnd() * 6), c: new THREE.Color(rnd() < 0.5 ? '#7d8288' : '#8d857a') })
@@ -846,7 +869,16 @@ function FarWestIndustry() {
       const z = -200 + rnd() * 380
       const h = 10 + rnd() * 30
       const c = 0.3 + rnd() * 0.12
-      items.push({ m: mat4(x, h / 2 + 2, z, rnd(), 24 + rnd() * 36, h, 20 + rnd() * 26), c: new THREE.Color(c * 0.95, c, c * 1.05) })
+      // seated on the western land, sunk a little so sloped ground never shows a gap
+      items.push({ m: mat4(x, terrainHeight(x, z) + h / 2 - 1, z, rnd(), 24 + rnd() * 36, h, 20 + rnd() * 26), c: new THREE.Color(c * 0.95, c, c * 1.05) })
+    }
+    // a second, hazier rank further out toward the western horizon
+    for (let i = 0; i < 14; i++) {
+      const x = -560 - rnd() * 180
+      const z = -240 + rnd() * 460
+      const h = 8 + rnd() * 26
+      const c = 0.32 + rnd() * 0.1
+      items.push({ m: mat4(x, terrainHeight(x, z) + h / 2 - 1, z, rnd(), 28 + rnd() * 40, h, 24 + rnd() * 30), c: new THREE.Color(c * 0.95, c, c * 1.05) })
     }
     return makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.95 }), items)
   }, [])
