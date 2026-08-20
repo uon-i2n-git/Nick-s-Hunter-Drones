@@ -66,7 +66,7 @@ const FRAG = /* glsl */ `
     // so the horizon closes in instead of running forever
     float dist = length(cameraPosition - vWorld) * 1.9;
     float fog = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist * 2.2);
-    fog = max(fog, smoothstep(420.0, 640.0, length(cameraPosition.xz - vWorld.xz)));
+    fog = max(fog, smoothstep(520.0, 830.0, length(cameraPosition.xz - vWorld.xz)));
     col = mix(col, uFogColor, clamp(fog, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
   }
@@ -92,7 +92,7 @@ export function Water({ weather }: { weather: WeatherDef }) {
   })
   return (
     <mesh rotation-x={-Math.PI / 2} position={[0, 0, 0]}>
-      <planeGeometry args={[1300, 1300, 1, 1]} />
+      <planeGeometry args={[1700, 1700, 1, 1]} />
       <shaderMaterial ref={mat} vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} />
     </mesh>
   )
