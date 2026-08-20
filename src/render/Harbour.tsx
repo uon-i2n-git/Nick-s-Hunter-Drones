@@ -9,7 +9,7 @@ import * as THREE from 'three'
 import {
   WHARVES, STACKS, CRANES, LOADERS, SHIPS, BUOYS, COAL_PILES,
   NOBBYS, LIGHTHOUSE, BREAKWALL, STOCKTON_BW, WHARF_DECK,
-  BASIN, CHANNEL, OCEAN_X, terrainHeight,
+  BASIN, CHANNEL, OCEAN_X, terrainHeight, OFFICES, NW_BEACH,
 } from '../game/world.ts'
 import { windAt, type WeatherDef } from '../game/weather.ts'
 import { Water } from './Water.tsx'
@@ -89,7 +89,10 @@ function Terrain() {
       const z = pos.getZ(i)
       const h = terrainHeight(x, z)
       pos.setY(i, h === 0 ? -1.8 : h - 0.05)
+      const nearBeach = x < -215 && x > -330 && z < -125 && z > -190
       if (h === 0) c.copy(ASPHALT)
+      else if (nearBeach) c.set('#c4ad7e').offsetHSL(0, 0, (rnd() - 0.5) * 0.04)
+      else if (h === 3 && z > 0) c.copy(rnd() < 0.45 ? GRASS2 : ASPHALT).offsetHSL(0, 0, (rnd() - 0.5) * 0.05) // office campus
       else if (h === 3) c.copy(rnd() < 0.6 ? ASPHALT : DIRT).offsetHSL(0, 0, (rnd() - 0.5) * 0.05)
       else c.copy(rnd() < 0.75 ? GRASS : GRASS2).offsetHSL(0, (rnd() - 0.5) * 0.05, (rnd() - 0.5) * 0.06)
       colors[i * 3] = c.r
@@ -124,7 +127,9 @@ function Shoreline() {
     }
     // basin edges (the wharves + apron cover the south x -150..150 and north)
     addRun(-310, 140, -152, 140, 5, true) // south-west revetment
-    addRun(-310, -128, -310, 138, 8, true) // west end of the basin
+    addRun(-310, -20, -310, 138, 5, true) // west end of the basin (south half)
+    addRun(-310, -126, -240, -126, 4, false) // the sandy beach shoreline
+    addRun(-310, -126, -310, -24, 3, false)
     addRun(152, -126, 152, -32, 4, false) // basin east wall, north of the gorge
     addRun(152, 70, 152, 140, 3, false) // basin east wall, south of the gorge
     // channel gorge banks
@@ -547,9 +552,13 @@ function City({ gusty }: { gusty: boolean }) {
         x += w + 3 + rnd() * 4
       }
     }
-    // basin east corner: tall faces looking straight down the dock
-    for (const z of [92, 116, -46, -72, -100]) {
-      addBlock(178 + rnd() * 18, z, 20 + rnd() * 10, 26 + rnd() * 30, 16 + rnd() * 8, z > 0 ? -1 : 1)
+    // basin east corner: tall faces only SOUTH of the gorge — the north-east
+    // corner stays low (the towers moved to the office campus across the water)
+    for (const z of [92, 116]) {
+      addBlock(178 + rnd() * 18, z, 20 + rnd() * 10, 26 + rnd() * 30, 16 + rnd() * 8, -1)
+    }
+    for (const z of [-46, -72, -100]) {
+      addBlock(178 + rnd() * 18, z, 18 + rnd() * 8, 8 + rnd() * 6, 14 + rnd() * 6, 1)
     }
     // CBD rising to the south-east
     for (let i = 0; i < 34; i++) {
@@ -561,11 +570,18 @@ function City({ gusty }: { gusty: boolean }) {
       if (x > 230 && x < 330 && z > 250 && h > 38) h = 38 // cathedral silhouette
       addBlock(x, z, 15 + rnd() * 15, h, 15 + rnd() * 15, -1)
     }
-    // mid-rise blocks north-east, across the channel
+    // low blocks north-east, across the channel (no high-rise on this side)
     for (let i = 0; i < 26; i++) {
       const x = 180 + rnd() * 250
       const z = -95 - rnd() * 130
-      addBlock(x, z, 15 + rnd() * 14, 12 + rnd() * 26, 15 + rnd() * 12, 1)
+      addBlock(x, z, 15 + rnd() * 14, 8 + rnd() * 10, 15 + rnd() * 12, 1)
+    }
+    // the Honeysuckle office precinct on the south wharf + campus behind
+    for (const o of OFFICES) {
+      const item = { m: mat4(o.x, o.y, o.z, 0, o.w, o.h, o.d) }
+      if (o.glass) glassItems.push(item)
+      else concrete.push({ ...item, c: new THREE.Color(palette[Math.floor(rnd() * palette.length)]) })
+      windowItems.push({ m: mat4(o.x, o.y, o.z - o.d / 2 - 0.15, Math.PI, o.w * 0.92, o.h * 0.85, 1) })
     }
 
     const boxGeo = new THREE.BoxGeometry(1, 1, 1)
@@ -687,7 +703,7 @@ function NorthSuburb() {
       for (let gx = 0; gx < 11; gx++) {
         if (rnd() < 0.14) continue
         const x = 175 + gx * 25 + (rnd() - 0.5) * 7
-        const z = -248 - gz * 26 - (rnd() - 0.5) * 7
+        const z = -272 - gz * 26 - (rnd() - 0.5) * 7
         const gy = terrainHeight(x, z)
         const two = rnd() < 0.25
         const h = two ? 5.6 : 3.2
@@ -705,6 +721,23 @@ function NorthSuburb() {
     <group>
       <primitive object={walls} />
       <primitive object={roofs} />
+      {/* the sandy beach at the north-west corner */}
+      <group>
+        <mesh position={[NW_BEACH.x, NW_BEACH.y, NW_BEACH.z]}>
+          <boxGeometry args={[NW_BEACH.w, NW_BEACH.h, NW_BEACH.d]} />
+          <meshStandardMaterial color="#cdb687" roughness={1} />
+        </mesh>
+        <mesh position={[NW_BEACH.x - 4, 0.25, NW_BEACH.z + 18]} rotation-x={-0.06}>
+          <boxGeometry args={[NW_BEACH.w + 10, 0.4, 14]} />
+          <meshStandardMaterial color="#d8c9a0" roughness={1} />
+        </mesh>
+        {[[-296, -172, 9], [-262, -178, 7], [-238, -170, 6]].map(([dx, dz, r], i) => (
+          <mesh key={i} position={[dx, 1, dz]}>
+            <coneGeometry args={[r * 2.2, 5, 6]} />
+            <meshStandardMaterial color="#c8b284" flatShading roughness={1} />
+          </mesh>
+        ))}
+      </group>
       {/* ferry landing on the north apron */}
       <group position={[90, 0, -132]}>
         <mesh position={[0, 2, 2]}>
@@ -726,11 +759,11 @@ function PortProps() {
     const rnd = mulberry32(41)
     const siloItems: Inst[] = []
     for (let i = 0; i < 7; i++) {
-      siloItems.push({ m: mat4(-296 + (i % 4) * 14, 3 + 14, 252 + Math.floor(i / 4) * 14, 0) })
+      siloItems.push({ m: mat4(-288 + (i % 4) * 14, 3 + 14, -212 - Math.floor(i / 4) * 14, 0) })
     }
     const shedItems: Inst[] = []
     const shedSpots: Array<[number, number, number]> = [
-      [-200, -212, 0], [-40, -212, 0.05], [-250, 290, 0.05], [20, 292, 0], [60, 283, 0.1], [120, -210, 0],
+      [-90, -244, 0], [120, -244, 0.05], [-190, -244, 0], [110, -168, 0.1],
     ]
     for (const [x, z, r] of shedSpots) {
       shedItems.push({ m: mat4(x, 3 + 5, z, r, 40 + rnd() * 10, 10, 18 + rnd() * 6), c: new THREE.Color(rnd() < 0.5 ? '#7d8288' : '#8d857a') })
