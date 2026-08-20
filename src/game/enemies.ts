@@ -17,7 +17,7 @@ export interface Enemy {
 
 const E2_WAYPOINTS: V3[] = [
   { x: 135, y: 48, z: -112 },
-  { x: -60, y: 72, z: -190 },
+  { x: -60, y: 70, z: -172 },
   { x: -170, y: 55, z: -60 },
   { x: -40, y: 66, z: 20 },
   { x: 120, y: 78, z: 60 },
@@ -36,8 +36,8 @@ export function spawnEnemies(): Enemy[] {
   ]
 }
 
-const E1_CENTER = { x: 60, z: -40 }
-const E1_RADIUS = 130
+const E1_CENTER = { x: 40, z: -30 }
+const E1_RADIUS = 100
 const E1_SPEED = 8
 const E2_SPEED = 14
 const E2_FLEE_SPEED = 19
@@ -76,11 +76,15 @@ export function stepEnemy(e: Enemy, player: V3, wind: V3, t: number, dt: number)
     if (dp < 80) e.evading = true
     else if (dp > 130) e.evading = false
     if (e.evading) {
-      // turn away from the player and climb
+      // turn away from the player and climb, staying over the dock basin
       const ax = e.pos.x - player.x
       const az = e.pos.z - player.z
       const m = Math.hypot(ax, az) || 1
-      target = { x: e.pos.x + (ax / m) * 120, y: Math.min(85, e.pos.y + 25), z: e.pos.z + (az / m) * 120 }
+      target = {
+        x: Math.max(-290, Math.min(135, e.pos.x + (ax / m) * 120)),
+        y: Math.min(85, e.pos.y + 25),
+        z: Math.max(-115, Math.min(120, e.pos.z + (az / m) * 120)),
+      }
       speed = E2_FLEE_SPEED
     } else {
       target = E2_WAYPOINTS[e.wpIndex]
@@ -98,11 +102,11 @@ export function stepEnemy(e: Enemy, player: V3, wind: V3, t: number, dt: number)
   e.vel.x += ((dx / m) * speed - e.vel.x) * k
   e.vel.y += ((dy / m) * speed * 0.6 - e.vel.y) * k
   e.vel.z += ((dz / m) * speed - e.vel.z) * k
-  const r = Math.hypot(e.pos.x, e.pos.z)
-  if (r > 480) {
-    e.vel.x -= (e.pos.x / r) * 30 * dt
-    e.vel.z -= (e.pos.z / r) * 30 * dt
-  }
+  // soft box keeping patrols over the basin
+  if (e.pos.x > 135) e.vel.x -= 30 * dt
+  if (e.pos.x < -290) e.vel.x += 30 * dt
+  if (e.pos.z > 120) e.vel.z -= 30 * dt
+  if (e.pos.z < -115) e.vel.z += 30 * dt
   e.pos.x += e.vel.x * dt
   e.pos.y = Math.max(25, e.pos.y + e.vel.y * dt)
   e.pos.z += e.vel.z * dt
