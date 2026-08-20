@@ -52,7 +52,7 @@ function Sky({ weather }: { weather: WeatherDef }) {
   )
   return (
     <mesh>
-      <sphereGeometry args={[1800, 16, 12]} />
+      <sphereGeometry args={[1000, 16, 12]} />
       <shaderMaterial
         side={THREE.BackSide}
         depthWrite={false}
@@ -331,7 +331,7 @@ function Nobbys({ gusty }: { gusty: boolean }) {
 
 function FortScratchley() {
   return (
-    <group position={[330, CITY_LAND.y + CITY_LAND.h / 2, 240]}>
+    <group position={[322, CITY_LAND.y + CITY_LAND.h / 2, 200]}>
       <mesh position={[0, 6, 0]} castShadow>
         <cylinderGeometry args={[20, 30, 12, 8]} />
         <meshStandardMaterial color="#6b6b4d" flatShading roughness={1} />
@@ -364,7 +364,7 @@ function FortScratchley() {
 
 function QueensWharfTower() {
   return (
-    <group position={[235, WHARF_DECK, 200]}>
+    <group position={[235, WHARF_DECK, 178]}>
       <mesh position={[0, 13, 0]} castShadow>
         <cylinderGeometry args={[1.1, 1.4, 26, 10]} />
         <meshStandardMaterial color="#d8d5cc" roughness={0.6} />
@@ -385,7 +385,7 @@ function Cathedral() {
   // sandstone cathedral with a square tower, high on the hill behind the CBD —
   // tall enough that the tower breaks the skyline from the water
   return (
-    <group position={[310, 0, 408]}>
+    <group position={[250, 0, 342]}>
       <mesh position={[0, 26, 0]}>
         <cylinderGeometry args={[44, 72, 52, 10]} />
         <meshStandardMaterial color="#5d6148" flatShading roughness={1} />
@@ -447,12 +447,13 @@ function City({ gusty }: { gusty: boolean }) {
 
     // CBD: jagged, mostly boxy, a handful of glass towers
     for (let i = 0; i < 48; i++) {
-      const x = 155 + rnd() * 310
-      const z = 265 + rnd() * 120
-      if (x > 290 && x < 380 && z < 290) continue // keep the fort's rise clear
+      const x = 140 + rnd() * 255
+      const z = 232 + rnd() * 92
+      if (x > 295 && z < 250) continue // keep the fort's rise clear
+      if (Math.hypot(x - 250, z - 342) < 82) continue // cathedral hill
       let h = 20 + rnd() * 28
       if (rnd() < 0.22) h = 52 + rnd() * 38
-      if (x > 250 && x < 370 && h > 46) h = 46 // keep the cathedral's silhouette clear
+      if (x > 195 && x < 310 && h > 46) h = 46 // keep the cathedral's silhouette clear
       const w = 15 + rnd() * 16
       const d = 15 + rnd() * 16
       const isGlass = rnd() < 0.26
@@ -467,17 +468,19 @@ function City({ gusty }: { gusty: boolean }) {
     const fore: Inst[] = []
     const awn: Inst[] = []
     const warm = ['#a3684a', '#b98a5f', '#8a5a44', '#c2a58a', '#96705a']
-    let x = 150
-    while (x < 465) {
-      const w = 13 + rnd() * 12
-      if (x > 288 && x < 378) { x += w + 2; continue } // fort + breakwall root
-      const h = 9 + rnd() * 13
-      const d = 12 + rnd() * 8
-      const z = 219 + rnd() * 18
-      fore.push({ m: mat4(x + w / 2, groundY + h / 2, z, 0, w, h, d), c: new THREE.Color(warm[Math.floor(rnd() * warm.length)]) })
-      awn.push({ m: mat4(x + w / 2, groundY + 3.4, z - d / 2 - 1, 0, w * 0.9, 0.3, 2.2) })
-      windowItems.push({ m: mat4(x + w / 2, groundY + h / 2, z - d / 2 - 0.15, 0, w * 0.9, h * 0.8, 1) })
-      x += w + 3 + rnd() * 5
+    for (const rowZ of [192, 208]) {
+      let x = 138
+      while (x < 395) {
+        const w = 12 + rnd() * 10
+        if (x > 290 && x < 362) { x += w + 2; continue } // fort + breakwall root
+        const h = 9 + rnd() * 13
+        const d = 11 + rnd() * 6
+        const z = rowZ + rnd() * 6
+        fore.push({ m: mat4(x + w / 2, groundY + h / 2, z, 0, w, h, d), c: new THREE.Color(warm[Math.floor(rnd() * warm.length)]) })
+        if (rowZ === 192) awn.push({ m: mat4(x + w / 2, groundY + 3.4, z - d / 2 - 1, 0, w * 0.9, 0.3, 2.2) })
+        windowItems.push({ m: mat4(x + w / 2, groundY + h / 2, z - d / 2 - 0.15, 0, w * 0.9, h * 0.8, 1) })
+        x += w + 3 + rnd() * 4
+      }
     }
 
     const boxGeo = new THREE.BoxGeometry(1, 1, 1)
@@ -525,18 +528,18 @@ function Promenade() {
     const rnd = mulberry32(17)
     const poleItems: Inst[] = []
     const lampItems: Inst[] = []
-    for (let x = 150; x <= 470; x += 14) {
-      if (x > 292 && x < 376) continue
-      poleItems.push({ m: mat4(x, groundY + 2.6, 201, 0, 1, 1, 1) })
-      lampItems.push({ m: mat4(x, groundY + 5.1, 201) })
+    for (let x = 138; x <= 396; x += 13) {
+      if (x > 292 && x < 362) continue
+      poleItems.push({ m: mat4(x, groundY + 2.6, 173, 0, 1, 1, 1) })
+      lampItems.push({ m: mat4(x, groundY + 5.1, 173) })
     }
     const trunkItems: Inst[] = []
     const crownItems: Inst[] = []
-    for (let x = 154; x <= 468; x += 11) {
-      if (x > 290 && x < 378) continue
+    for (let x = 142; x <= 392; x += 10) {
+      if (x > 288 && x < 364) continue
       const palm = rnd() < 0.7
       const h = palm ? 5.5 + rnd() * 2.5 : 3 + rnd()
-      const zz = 208 + rnd() * 5
+      const zz = 180 + rnd() * 4
       trunkItems.push({ m: mat4(x + (rnd() - 0.5) * 4, groundY + h / 2, zz, 0, 1, h / 6, 1) })
       crownItems.push({
         m: mat4(x + (rnd() - 0.5) * 4, groundY + h + (palm ? 0.6 : 1.6), zz, rnd() * 3, palm ? 1 : 2.2, palm ? 0.8 : 1.7, palm ? 1 : 2.2),
@@ -553,16 +556,16 @@ function Promenade() {
   return (
     <group name="promenadeDetail">
       {/* paved promenade + sea wall */}
-      <mesh position={[266, groundY + 0.12, 205]}>
-        <boxGeometry args={[335, 0.24, 18]} />
-        <meshStandardMaterial color="#8f8a80" roughness={0.95} />
+      <mesh position={[265, groundY + 0.12, 177]}>
+        <boxGeometry args={[264, 0.24, 16]} />
+        <meshStandardMaterial color="#87837a" roughness={0.95} />
       </mesh>
-      <mesh position={[266, groundY + 0.5, 196.6]}>
-        <boxGeometry args={[335, 1.4, 1.2]} />
+      <mesh position={[265, groundY + 0.5, 169.2]}>
+        <boxGeometry args={[264, 1.4, 1.2]} />
         <meshStandardMaterial color="#7b766c" roughness={1} />
       </mesh>
-      <mesh position={[266, groundY + 1.35, 196.6]}>
-        <boxGeometry args={[335, 0.12, 0.8]} />
+      <mesh position={[265, groundY + 1.35, 169.2]}>
+        <boxGeometry args={[264, 0.12, 0.8]} />
         <meshStandardMaterial color="#2f363d" roughness={0.6} />
       </mesh>
       <primitive object={poles} />
@@ -582,11 +585,11 @@ function Stockton() {
     const roofItems: Inst[] = []
     const wallCols = ['#c9bfa8', '#b8c0c4', '#c7a98a', '#a8b090', '#cfc6b0']
     const roofCols = ['#8a4a3b', '#5d6468', '#7a5a48', '#4e5a60']
-    for (let gz = 0; gz < 7; gz++) {
+    for (let gz = 0; gz < 6; gz++) {
       for (let gx = 0; gx < 9; gx++) {
         if (rnd() < 0.14) continue
-        const x = 268 + gx * 30 + (rnd() - 0.5) * 8
-        const z = -195 - gz * 27 - (rnd() - 0.5) * 8
+        const x = 168 + gx * 25 + (rnd() - 0.5) * 7
+        const z = -152 - gz * 26 - (rnd() - 0.5) * 7
         const two = rnd() < 0.25
         const h = two ? 5.6 : 3.2
         const ry = (rnd() - 0.5) * 0.2 + (gz % 2 ? Math.PI / 2 : 0)
@@ -604,7 +607,7 @@ function Stockton() {
       <primitive object={walls} />
       <primitive object={roofs} />
       {/* ferry wharf */}
-      <group position={[290, 0, -168]}>
+      <group position={[185, 0, -128]}>
         <mesh position={[0, 2, -5]}>
           <boxGeometry args={[16, 1.2, 22]} />
           <meshStandardMaterial color="#6b6257" roughness={0.95} />
@@ -624,11 +627,11 @@ function PortProps() {
     const rnd = mulberry32(41)
     const siloItems: Inst[] = []
     for (let i = 0; i < 7; i++) {
-      siloItems.push({ m: mat4(196 + (i % 4) * 14, 2.5 + 14, -150 - Math.floor(i / 4) * 14, 0) })
+      siloItems.push({ m: mat4(-302 + (i % 4) * 14, 2.5 + 14, -160 - Math.floor(i / 4) * 14, 0) })
     }
     const shedItems: Inst[] = []
     const shedSpots: Array<[number, number, number]> = [
-      [-280, -160, 0], [-60, -246, 0.1], [130, -246, 0], [-250, 290, 0.05], [20, 292, 0], [110, 260, 0.1],
+      [-240, -160, 0], [-60, -246, 0.1], [70, -246, 0], [-250, 290, 0.05], [20, 292, 0], [60, 283, 0.1],
     ]
     for (const [x, z, r] of shedSpots) {
       shedItems.push({ m: mat4(x, 2.5 + 5, z, r, 42 + rnd() * 10, 10, 20 + rnd() * 6), c: new THREE.Color(rnd() < 0.5 ? '#7d8288' : '#8d857a') })
@@ -672,8 +675,8 @@ function FarWestIndustry() {
     const rnd = mulberry32(53)
     const items: Inst[] = []
     for (let i = 0; i < 26; i++) {
-      const x = -650 - rnd() * 280
-      const z = -160 + rnd() * 330
+      const x = -430 - rnd() * 130
+      const z = -180 + rnd() * 340
       const h = 10 + rnd() * 30
       const c = 0.3 + rnd() * 0.12
       items.push({ m: mat4(x, h / 2, z, rnd(), 24 + rnd() * 36, h, 20 + rnd() * 26), c: new THREE.Color(c * 0.95, c, c * 1.05) })
@@ -683,10 +686,71 @@ function FarWestIndustry() {
   return <primitive object={mesh} />
 }
 
+// ---------------------------------------------------------------- horizon ring
+// hills and suburbs close the view south and behind Stockton so the
+// horizon reads as land, not endless water
+function SouthRise() {
+  const { mounds, suburbs } = useMemo(() => {
+    const rnd = mulberry32(61)
+    const moundItems: Inst[] = [
+      { m: mat4(-60, 0, 448, 0.2, 180, 52, 130), c: new THREE.Color('#5a5e44') },
+      { m: mat4(120, 0, 458, 0.5, 230, 68, 150), c: new THREE.Color('#565a42') },
+      { m: mat4(290, 0, 442, 0.9, 170, 46, 120), c: new THREE.Color('#5e6248') },
+      { m: mat4(-230, 0, 420, 0.3, 160, 38, 110), c: new THREE.Color('#585c44') },
+    ]
+    const suburbItems: Inst[] = []
+    for (let i = 0; i < 42; i++) {
+      const x = -180 + rnd() * 480
+      const z = 402 + rnd() * 42
+      const c = 0.55 + rnd() * 0.2
+      suburbItems.push({ m: mat4(x, 3 + rnd() * 10, z, rnd(), 9 + rnd() * 8, 4 + rnd() * 3, 8 + rnd() * 7), c: new THREE.Color(c, c * 0.93, c * 0.83) })
+    }
+    const cone = new THREE.ConeGeometry(0.5, 1, 7)
+    cone.translate(0, 0.5, 0)
+    return {
+      mounds: makeInstanced(cone, new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), moundItems),
+      suburbs: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.95 }), suburbItems),
+    }
+  }, [])
+  return (
+    <group>
+      {/* back plate under the rise */}
+      <mesh position={[60, 1.4, 435]}>
+        <boxGeometry args={[560, 2.8, 80]} />
+        <meshStandardMaterial color="#565a4a" roughness={1} />
+      </mesh>
+      <primitive object={mounds} />
+      <primitive object={suburbs} />
+    </group>
+  )
+}
+
+function StocktonDunes() {
+  const mounds = useMemo(() => {
+    const items: Inst[] = [
+      { m: mat4(210, 0, -318, 0.1, 160, 16, 60), c: new THREE.Color('#7a7458') },
+      { m: mat4(330, 0, -324, -0.15, 150, 20, 55), c: new THREE.Color('#767052') },
+      { m: mat4(120, 0, -310, 0.3, 90, 12, 45), c: new THREE.Color('#7e785c') },
+    ]
+    const cone = new THREE.ConeGeometry(0.5, 1, 6)
+    cone.translate(0, 0.5, 0)
+    return makeInstanced(cone, new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), items)
+  }, [])
+  return (
+    <group>
+      <mesh position={[240, 0.9, -318]}>
+        <boxGeometry args={[330, 1.8, 60]} />
+        <meshStandardMaterial color="#6e6852" roughness={1} />
+      </mesh>
+      <primitive object={mounds} />
+    </group>
+  )
+}
+
 // ---------------------------------------------------------------- ocean baths (scenery)
 function OceanBaths() {
   return (
-    <group position={[588, 0, 248]}>
+    <group position={[420, 0, 170]}>
       <mesh position={[0, 0.8, 0]}>
         <boxGeometry args={[70, 1.6, 44]} />
         <meshStandardMaterial color="#7d7568" roughness={1} />
@@ -755,8 +819,8 @@ function Dynamics({ weather }: { weather: WeatherDef }) {
       const ph = (t % cycle) / cycle
       const leg = ph < 0.5 ? ph * 2 : (1 - ph) * 2
       const ease = Math.min(1, Math.max(0, (leg - 0.04) / 0.92))
-      const a = { x: 290, z: -148 }
-      const b = { x: 240, z: 186 }
+      const a = { x: 185, z: -112 }
+      const b = { x: 228, z: 158 }
       ferry.position.set(a.x + (b.x - a.x) * ease, 0, a.z + (b.z - a.z) * ease)
       ferry.rotation.y = ph < 0.5 ? Math.atan2(-(b.x - a.x), -(b.z - a.z)) : Math.atan2(b.x - a.x, b.z - a.z)
       const w = ferryWake.current
@@ -794,7 +858,7 @@ function Dynamics({ weather }: { weather: WeatherDef }) {
     if (foamMat.current) foamMat.current.opacity = 0.28 + 0.18 * (0.5 + 0.5 * Math.sin(t * 1.1)) * (1 + weather.whitecaps)
     // distance culling for detail layers
     const cam = camera.position
-    const dCity = Math.hypot(cam.x - 300, cam.z - 280)
+    const dCity = Math.hypot(cam.x - 265, cam.z - 250)
     const windows = scene.getObjectByName('cityWindows')
     if (windows) windows.visible = dCity < 780
     const awnings = scene.getObjectByName('cityAwnings')
@@ -953,6 +1017,8 @@ export function Harbour({ weather }: { weather: WeatherDef }) {
       <City gusty={gusty} />
       <Promenade />
       <Stockton />
+      <SouthRise />
+      <StocktonDunes />
       <OceanBaths />
       <FarWestIndustry />
       <Dynamics weather={weather} />

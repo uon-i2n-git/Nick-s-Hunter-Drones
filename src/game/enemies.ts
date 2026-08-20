@@ -16,7 +16,7 @@ export interface Enemy {
 }
 
 const E2_WAYPOINTS: V3[] = [
-  { x: 150, y: 45, z: -150 },
+  { x: 135, y: 48, z: -112 },
   { x: -60, y: 72, z: -190 },
   { x: -170, y: 55, z: -60 },
   { x: -40, y: 66, z: 20 },

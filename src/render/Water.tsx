@@ -62,8 +62,11 @@ const FRAG = /* glsl */ `
       col = mix(col, vec3(0.8, 0.85, 0.88), caps * 0.35 * uWhitecaps);
     }
 
-    float dist = length(cameraPosition - vWorld);
+    // sea haze: the water fades to the fog colour well before the plane edge,
+    // so the horizon closes in instead of running forever
+    float dist = length(cameraPosition - vWorld) * 1.9;
     float fog = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist * 2.2);
+    fog = max(fog, smoothstep(420.0, 640.0, length(cameraPosition.xz - vWorld.xz)));
     col = mix(col, uFogColor, clamp(fog, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
   }
@@ -89,7 +92,7 @@ export function Water({ weather }: { weather: WeatherDef }) {
   })
   return (
     <mesh rotation-x={-Math.PI / 2} position={[0, 0, 0]}>
-      <planeGeometry args={[4000, 4000, 1, 1]} />
+      <planeGeometry args={[1300, 1300, 1, 1]} />
       <shaderMaterial ref={mat} vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} />
     </mesh>
   )
