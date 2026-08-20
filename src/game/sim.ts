@@ -7,7 +7,7 @@ import {
   type DroneInput, type DroneState, type FlightEnv, type Mixer, type Q4, type V3,
 } from './physics.ts'
 import { WEATHERS, windAt, type WeatherId, type WeatherDef } from './weather.ts'
-import { FENCE_RADIUS, SPAWN, SPAWN_YAW, STATIC_TAGGABLES, collide, groundAt } from './world.ts'
+import { FENCE_RADIUS, SPAWN, SPAWN_YAW, STATIC_TAGGABLES, collide, fenceExcess, groundAt } from './world.ts'
 import { GATES, GATE_RADIUS, LAPS, MISSED_GATE_PENALTY, medalFor, medalsFor } from './course.ts'
 import { spawnEnemies, stepEnemy, type Enemy } from './enemies.ts'
 
@@ -115,6 +115,7 @@ export class Sim {
       windAt: (p, t) => windAt(this.weather, p, t),
       groundAt: (x, z) => groundAt(x, z, this.state.pos.y),
       fenceRadius: FENCE_RADIUS,
+      fenceExcess,
       // race runs on reduced drain (per-drone) so a clean 3-lap run fits the
       // airframe's battery — see raceDrain in drones.ts
       drainScale: cfg.mode === 'race' ? this.def.raceDrain : 1,

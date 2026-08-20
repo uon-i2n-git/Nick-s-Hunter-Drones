@@ -102,6 +102,9 @@ export interface FlightEnv {
   groundAt: (x: number, z: number) => number
   /** soft geofence: radius where pushback starts */
   fenceRadius: number
+  /** optional shaped boundary (map-defined). Same push formula as the circle:
+   *  force = metres-outside * 0.06 * mass, directed back inside. */
+  fenceExcess?: (x: number, z: number) => { ox: number; oz: number; m: number } | null
   /** battery drain multiplier (race mode runs at 0.85 so a full race fits) */
   drainScale?: number
 }
@@ -290,11 +293,27 @@ export function stepDrone(
   Fy -= def.kDrag * rv * rvy
   Fz -= def.kDrag * rv * rvz
 
-  const rad = Math.hypot(s.pos.x, s.pos.z)
-  if (rad > env.fenceRadius) {
-    const push = (rad - env.fenceRadius) * 0.06 * mass
-    Fx -= (s.pos.x / rad) * push
-    Fz -= (s.pos.z / rad) * push
+  if (env.fenceExcess) {
+    const e = env.fenceExcess(s.pos.x, s.pos.z)
+    if (e) {
+      const push = e.m * 0.06 * mass
+      Fx += e.ox * push
+      Fz += e.oz * push
+      // while out of bounds, also damp outward velocity so a boosting drone
+      // cannot punch deep past the line. Acts only beyond the boundary.
+      const vOut = -(s.vel.x * e.ox + s.vel.z * e.oz)
+      if (vOut > 0) {
+        Fx += e.ox * vOut * 3 * mass
+        Fz += e.oz * vOut * 3 * mass
+      }
+    }
+  } else {
+    const rad = Math.hypot(s.pos.x, s.pos.z)
+    if (rad > env.fenceRadius) {
+      const push = (rad - env.fenceRadius) * 0.06 * mass
+      Fx -= (s.pos.x / rad) * push
+      Fz -= (s.pos.z / rad) * push
+    }
   }
 
   // semi-implicit Euler

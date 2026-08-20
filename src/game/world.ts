@@ -1,5 +1,11 @@
-// Harbour layout, shared by rendering, collision and the race course.
-// One unit = one metre. Water is y = 0. Playable area ~1200 x 1200 m.
+// Newcastle Harbour, compressed to fit the playable area. Shared by
+// rendering, collision, the fence and the race course. One unit = one metre.
+// Axes: +Y up, north = -Z, east = +X. The Pacific is EAST, the channel runs
+// inland WEST. Water is y = 0.
+//
+// The playable area is the cargo harbour and its water. Nobbys Head, the
+// breakwalls and the harbour entrance are reachable; the city foreshore and
+// Stockton's streets are near-distance scenery behind a soft fence line.
 import type { DroneState, V3 } from './physics.ts'
 
 export const FENCE_RADIUS = 580
@@ -10,15 +16,49 @@ export interface Box {
   w: number; h: number; d: number // full extents
 }
 
-// Wharves (decks 3 m above water)
+// ---- port wharves (playable, unchanged race geometry) ----------------------
 export const WHARVES: Box[] = [
-  { x: 0, y: WHARF_DECK / 2, z: 150, w: 300, h: WHARF_DECK, d: 80 }, // main, south side
-  { x: -215, y: WHARF_DECK / 2, z: 10, w: 100, h: WHARF_DECK, d: 110 }, // west
-  { x: 215, y: WHARF_DECK / 2, z: -10, w: 100, h: WHARF_DECK, d: 100 }, // east
+  { x: 0, y: WHARF_DECK / 2, z: 150, w: 300, h: WHARF_DECK, d: 80 }, // main, south bank
+  { x: -215, y: WHARF_DECK / 2, z: 10, w: 100, h: WHARF_DECK, d: 110 }, // west basin arm
 ]
 
-// Container stacks: cluster boxes used for collision; individual containers
-// are instanced inside these footprints by the renderer. 12 x 2.4 x 2.6 m.
+// ---- land plates ------------------------------------------------------------
+export const NORTH_BANK: Box = { x: -32, y: 1.25, z: -164, w: 575, h: 2.5, d: 192 } // z -260..-68
+export const SOUTH_HINTERLAND: Box = { x: -90, y: 1.25, z: 260, w: 460, h: 2.5, d: 140 } // behind main wharf
+export const CITY_LAND: Box = { x: 335, y: 1.25, z: 336, w: 390, h: 2.5, d: 280 } // z 196..476
+export const STOCKTON_LAND: Box = { x: 402, y: 1, z: -299, w: 315, h: 2, d: 242 } // z -420..-178
+export const BEACH: Box = { x: 302, y: 0.11, z: 191, w: 58, h: 0.22, d: 14 } // Horseshoe Beach, low sand spit against the shore
+
+// ---- Nobbys Head + lighthouse ----------------------------------------------
+export const NOBBYS = { x: 540, z: 115, height: 27, baseR: 52, topR: 36 }
+export const LIGHTHOUSE = { x: 540, y: NOBBYS.height, z: 106 } // squat 9 m tower on top
+
+// ---- breakwalls ---------------------------------------------------------------
+// Macquarie Pier: mainland (Fort Scratchley side) out to Nobbys. Flyable.
+export const BREAKWALL = { x0: 300, z0: 195, x1: 506, z1: 128, w: 11, top: 4 }
+// Stockton breakwater, mirroring it on the north side, beacon at the tip.
+export const STOCKTON_BW = { x0: 468, z0: -152, x1: 554, z1: -54, w: 9, top: 3.5 }
+
+function wallSegments(bw: { x0: number; z0: number; x1: number; z1: number; w: number; top: number }, n: number): Box[] {
+  const out: Box[] = []
+  const len = Math.hypot(bw.x1 - bw.x0, bw.z1 - bw.z0)
+  for (let i = 0; i < n; i++) {
+    const t0 = i / n
+    const t1 = (i + 1) / n
+    const xa = bw.x0 + (bw.x1 - bw.x0) * t0
+    const xb = bw.x0 + (bw.x1 - bw.x0) * t1
+    const za = bw.z0 + (bw.z1 - bw.z0) * t0
+    const zb = bw.z0 + (bw.z1 - bw.z0) * t1
+    out.push({
+      x: (xa + xb) / 2, y: bw.top / 2, z: (za + zb) / 2,
+      w: Math.abs(xb - xa) + bw.w * 0.8, h: bw.top, d: Math.abs(zb - za) + bw.w * 0.8,
+    })
+  }
+  void len
+  return out
+}
+
+// ---- container stacks --------------------------------------------------------
 export interface StackDef extends Box { rows: number; cols: number; layers: number }
 function stack(x: number, z: number, rows: number, cols: number, layers: number, rotated = false): StackDef {
   const len = 12.2, wid = 2.6
@@ -27,51 +67,155 @@ function stack(x: number, z: number, rows: number, cols: number, layers: number,
   return { x, y: WHARF_DECK + (layers * 2.6) / 2, z, w, h: layers * 2.6, d, rows, cols, layers }
 }
 export const STACKS: StackDef[] = [
-  // main wharf, behind the cranes (~64 containers total)
+  // main wharf (race geometry — unchanged)
   stack(-95, 165, 2, 2, 3),
   stack(-55, 168, 2, 1, 2),
   stack(60, 165, 2, 2, 3),
   stack(100, 168, 2, 1, 2),
-  // west wharf: two stacks with a flyable gap between (race descends through it)
+  // west basin arm: the race's stack-gap pair (unchanged)
   stack(-238, 20, 2, 2, 3, true),
   stack(-186, 20, 2, 2, 3, true),
-  // east wharf
-  stack(215, -25, 2, 2, 2),
+  // south hinterland container park
+  stack(-60, 235, 2, 3, 3),
+  stack(-180, 240, 2, 3, 3),
+  stack(60, 240, 2, 2, 2),
+  // north bank terminal
+  stack(-260, -200, 2, 3, 3),
+  stack(-160, -206, 2, 3, 4),
+  stack(-40, -200, 2, 3, 3),
+  stack(80, -206, 2, 2, 4),
+  stack(170, -196, 2, 2, 3),
+  stack(215, -232, 2, 2, 2),
 ]
 
-// Cranes: 45 m tall portal cranes. Position + jib heading (rad).
+// ---- harbour cranes + coal loaders --------------------------------------------
 export interface CraneDef { x: number; z: number; rot: number }
 export const CRANES: CraneDef[] = [
+  // main wharf (unchanged positions — the race threads these)
   { x: -80, z: 122, rot: 0 },
   { x: 0, z: 122, rot: 0.3 },
   { x: 80, z: 122, rot: -0.2 },
-  { x: -215, z: -36, rot: Math.PI / 2 },
+  { x: -215, z: -36, rot: Math.PI / 2 }, // west basin, the 60 m race gate rounds it
+  // north bank container terminal (face south over the water)
+  { x: -50, z: -150, rot: Math.PI },
+  { x: 120, z: -150, rot: Math.PI },
+  // hinterland rail yard
+  { x: -260, z: 230, rot: 0.15 },
 ]
 
-// Moored ships: hull AABBs (deck height ~6 m above water)
+/** rail-mounted coal shiploaders along the north bank berths */
+export interface LoaderDef { x: number; z: number }
+export const LOADERS: LoaderDef[] = [
+  { x: -240, z: -96 },
+  { x: -120, z: -96 },
+  { x: 10, z: -96 },
+  { x: 190, z: -96 },
+]
+
+export const COAL_PILES: Box[] = [
+  { x: -160, y: 6, z: -142, w: 130, h: 12, d: 20 },
+  { x: 30, y: 5, z: -138, w: 100, h: 10, d: 17 },
+]
+
+// ---- ships ---------------------------------------------------------------------
 export interface ShipDef extends Box { rot: number; kind: 'bulk' | 'tug' }
 export const SHIPS: ShipDef[] = [
-  // moored along the main wharf; the gap between its side and the wharf edge
-  // (z 97..110) is the race's return corridor
+  // moored along the main wharf; its gap with the wharf edge is the race corridor
   { x: -30, y: 3, z: 88, w: 110, h: 6, d: 18, rot: 0, kind: 'bulk' },
-  { x: -160, y: 3, z: -120, w: 90, h: 6, d: 16, rot: 0.9, kind: 'bulk' },
+  // berthed under the north-bank coal loaders
+  { x: -170, y: 3, z: -56, w: 120, h: 6, d: 18, rot: 0, kind: 'bulk' },
+  { x: 40, y: 3, z: -56, w: 95, h: 6, d: 16, rot: 0, kind: 'bulk' },
+  // riding at anchor in the channel, waiting for a berth
+  { x: 420, y: 3, z: 40, w: 105, h: 6, d: 17, rot: 0.35, kind: 'bulk' },
   { x: 150, y: 2, z: 62, w: 30, h: 4, d: 9, rot: 0.2, kind: 'tug' },
 ]
 
-// launch pad on the main wharf edge, nose pointing east down the start
-// straight — Space then W flies a first-timer through the start gate
+// channel markers: port (red) on the south side, starboard (green) north
+export const BUOYS: Array<{ x: number; z: number; green: boolean }> = [
+  { x: 140, z: 55, green: false }, { x: 140, z: -35, green: true },
+  { x: 250, z: 60, green: false }, { x: 250, z: -40, green: true },
+  { x: 360, z: 70, green: false }, { x: 360, z: -45, green: true },
+  { x: 470, z: 85, green: false }, { x: 470, z: -48, green: true },
+]
+
 export const SPAWN: V3 = { x: -110, y: WHARF_DECK + 0.35, z: 114 }
 export const SPAWN_YAW = -Math.PI / 2
 
-// ---- collision -------------------------------------------------------------
+// ---- geofence -------------------------------------------------------------------
+// Soft boundary: the 580 m circle, plus two bank lines so the player can fly
+// the harbour water and the entrance but never over the city foreshore or
+// Stockton's streets. Returns inward unit direction + metres of violation.
+function southLimit(x: number): number {
+  if (x < 60) return 330
+  if (x < 140) return 330 - ((x - 60) / 80) * 135 // ramp 330 -> 195
+  return 195
+}
+function northLimit(x: number): number {
+  if (x < 180) return -285
+  if (x < 250) return -285 + ((x - 180) / 70) * 115 // ramp -285 -> -170
+  return -170
+}
+export function fenceExcess(x: number, z: number): { ox: number; oz: number; m: number } | null {
+  let ox = 0
+  let oz = 0
+  let m = 0
+  const r = Math.hypot(x, z)
+  if (r > FENCE_RADIUS) {
+    const e = r - FENCE_RADIUS
+    ox -= (x / r) * e
+    oz -= (z / r) * e
+    m += e
+  }
+  // bank lines stiffen with depth so they hold against a boosting drone
+  const sl = southLimit(x)
+  if (z > sl) {
+    const e = (z - sl) * (1 + (z - sl) * 0.5)
+    oz -= e
+    m += e
+  }
+  const nl = northLimit(x)
+  if (z < nl) {
+    const e = (nl - z) * (1 + (nl - z) * 0.5)
+    oz += e
+    m += e
+  }
+  if (m === 0) return null
+  const n = Math.hypot(ox, oz) || 1
+  return { ox: ox / n, oz: oz / n, m }
+}
+
+// ---- collision --------------------------------------------------------------------
 const SOLIDS: Box[] = [
   ...WHARVES,
+  NORTH_BANK,
+  SOUTH_HINTERLAND,
+  CITY_LAND,
+  STOCKTON_LAND,
+  BEACH,
   ...STACKS,
-  ...SHIPS.map((s) => ({ ...s })), // rotation ignored for collision, close enough
+  ...SHIPS.map((s) => ({ ...s })), // rotation ignored, close enough
   ...CRANES.flatMap((c) => [
     { x: c.x - 9, y: 22.5, z: c.z, w: 3, h: 45, d: 3 },
     { x: c.x + 9, y: 22.5, z: c.z, w: 3, h: 45, d: 3 },
   ]),
+  ...LOADERS.flatMap((l) => [
+    { x: l.x - 8, y: 14, z: l.z, w: 3, h: 28, d: 3 },
+    { x: l.x + 8, y: 14, z: l.z, w: 3, h: 28, d: 3 },
+  ]),
+  ...COAL_PILES,
+  ...wallSegments(BREAKWALL, 7),
+  ...wallSegments(STOCKTON_BW, 4),
+  // building rows backing the fence lines, so a hard lean bonks a wall
+  // instead of ghosting through facades (fort gap x 288..378 left open)
+  { x: 219, y: 14, z: 231, w: 138, h: 24, d: 38 },
+  { x: 424, y: 14, z: 231, w: 92, h: 24, d: 38 },
+  { x: 402, y: 6, z: -212, w: 285, h: 10, d: 35 },
+  // ocean baths rock shelf (scenery, but landable if reached)
+  { x: 588, y: 1, z: 248, w: 70, h: 2, d: 44 },
+  // Nobbys Head + the buildings on top
+  { x: NOBBYS.x, y: NOBBYS.height / 2, z: NOBBYS.z, w: 88, h: NOBBYS.height, d: 80 },
+  { x: LIGHTHOUSE.x, y: NOBBYS.height + 5, z: LIGHTHOUSE.z, w: 5, h: 10, d: 5 },
+  { x: 530, y: NOBBYS.height + 3, z: 120, w: 13, h: 6, d: 9 },
 ]
 
 /** height of whatever is under (x, z) — used for AGL and top landings.
@@ -114,13 +258,20 @@ export function collide(s: DroneState): boolean {
   return hard
 }
 
-// ---- taggables for the Kestrel's sensor sweep ------------------------------
+// ---- taggables for the Kestrel's sensor sweep -----------------------------------
 export interface Taggable { id: string; label: string; pos: V3 }
 export const STATIC_TAGGABLES: Taggable[] = [
   ...CRANES.map((c, i) => ({ id: `crane${i}`, label: 'PORTAL CRANE · 45 M', pos: { x: c.x, y: 30, z: c.z } })),
+  ...LOADERS.map((l, i) => ({ id: `loader${i}`, label: 'COAL SHIPLOADER', pos: { x: l.x, y: 22, z: l.z } })),
   ...SHIPS.map((s, i) => ({
     id: `ship${i}`,
-    label: s.kind === 'bulk' ? 'BULK CARRIER · MOORED' : 'HARBOUR TUG',
+    label: s.kind === 'bulk' ? 'BULK CARRIER' : 'HARBOUR TUG',
     pos: { x: s.x, y: s.y + s.h, z: s.z },
   })),
+  { id: 'lighthouse', label: 'NOBBYS LIGHTHOUSE · SIGNAL STN', pos: { x: LIGHTHOUSE.x, y: NOBBYS.height + 8, z: LIGHTHOUSE.z } },
+  { id: 'fort', label: 'FORT SCRATCHLEY', pos: { x: 330, y: 18, z: 240 } },
+  { id: 'qwt', label: 'QUEENS WHARF TOWER', pos: { x: 235, y: 20, z: 202 } },
+  { id: 'cathedral', label: 'CHRIST CHURCH CATHEDRAL', pos: { x: 310, y: 85, z: 408 } },
+  { id: 'ferry', label: 'STOCKTON FERRY WHARF', pos: { x: 290, y: 6, z: -160 } },
+  { id: 'coal', label: 'COAL TERMINAL', pos: { x: -100, y: 15, z: -140 } },
 ]

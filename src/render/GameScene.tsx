@@ -41,7 +41,8 @@ interface Props {
 }
 
 export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
-  const { camera } = useThree()
+  const { camera, gl } = useThree()
+  const perf = useRef({ frames: 0, t0: 0 })
   const droneRef = useRef<THREE.Group>(null)
   const sunRef = useRef<THREE.DirectionalLight>(null)
   const coneRef = useRef<THREE.Mesh>(null)
@@ -307,6 +308,21 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     if (sim.t - hudAt.current >= 0.1) {
       hudAt.current = sim.t
       onHud(buildHud(sim, mode, lastRanges.current))
+    }
+
+    // ---- perf probe (read by tooling via window.__NHD_PERF) ----
+    const p = perf.current
+    p.frames++
+    const now = performance.now()
+    if (p.t0 === 0) p.t0 = now
+    if (now - p.t0 >= 1000) {
+      ;(window as unknown as Record<string, unknown>).__NHD_PERF = {
+        calls: gl.info.render.calls,
+        triangles: gl.info.render.triangles,
+        frameMs: (now - p.t0) / p.frames,
+      }
+      p.frames = 0
+      p.t0 = now
     }
   })
 
