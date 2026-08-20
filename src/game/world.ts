@@ -1,4 +1,5 @@
-// A working city dockyard (Newcastle in character, not in survey). Shared by
+// Newcastle-flavoured working dockyard: the Hunter basin coal port wrapped
+// by the city, with the channel out past Nobbys to the sea. Shared by
 // rendering, collision, the fence and the race course. One unit = one metre.
 // Axes: +Y up, north = -Z, east = +X.
 //
@@ -295,10 +296,10 @@ export const STATIC_TAGGABLES: Taggable[] = [
     label: s.kind === 'bulk' ? 'BULK CARRIER' : 'HARBOUR TUG',
     pos: { x: s.x, y: s.y + s.h, z: s.z },
   })),
-  { id: 'lighthouse', label: 'HARBOUR LIGHT · SIGNAL STN', pos: { x: LIGHTHOUSE.x, y: NOBBYS.height + 8, z: LIGHTHOUSE.z } },
-  { id: 'fort', label: 'OLD BATTERY', pos: { x: 500, y: 22, z: 100 } },
-  { id: 'qwt', label: 'HARBOURSIDE TOWER', pos: { x: 205, y: 24, z: 84 } },
-  { id: 'cathedral', label: 'CATHEDRAL', pos: { x: 280, y: 70, z: 360 } },
-  { id: 'ferry', label: 'CROSS-DOCK FERRY', pos: { x: 90, y: 6, z: -120 } },
+  { id: 'lighthouse', label: 'NOBBYS LIGHT · SIGNAL STN', pos: { x: LIGHTHOUSE.x, y: NOBBYS.height + 8, z: LIGHTHOUSE.z } },
+  { id: 'fort', label: 'FORT SCRATCHLEY', pos: { x: 500, y: 22, z: 100 } },
+  { id: 'qwt', label: 'QUEENS WHARF TOWER', pos: { x: 205, y: 24, z: 84 } },
+  { id: 'cathedral', label: 'CHRIST CHURCH CATHEDRAL', pos: { x: 280, y: 70, z: 360 } },
+  { id: 'ferry', label: 'STOCKTON FERRY', pos: { x: 90, y: 6, z: -120 } },
   { id: 'coal', label: 'COAL TERMINAL', pos: { x: -150, y: 18, z: -160 } },
 ]
