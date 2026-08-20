@@ -22,14 +22,16 @@ const n = (x: number, z: number): V3 => {
 }
 
 export const GATES: Gate[] = [
-  { pos: { x: -45, y: 9, z: 104 }, normal: n(1, 0) }, // start/finish, in the ship/wharf gap
-  { pos: { x: 42, y: 8, z: 94 }, normal: n(0.99, -0.12) }, // straight out of the gap, past the bow
-  { pos: { x: 0, y: 12, z: -8 }, normal: n(-0.75, -0.66) }, // swinging north-west
-  { pos: { x: -95, y: 30, z: -40 }, normal: n(-0.95, -0.3) }, // climbing west
-  { pos: { x: -192, y: 56, z: -50 }, normal: n(-0.6, 0.8) }, // ~60 m, around the west crane
-  { pos: { x: -212, y: 12, z: 15 }, normal: n(0, 1) }, // descend between the container stacks
-  { pos: { x: -212, y: 10, z: 96 }, normal: n(0.5, 0.87) }, // far end, tight turn after
-  { pos: { x: -128, y: 8, z: 104 }, normal: n(1, 0) }, // back into the gap run home
+  // the course lives on the north (port) side of the basin now — same legs,
+  // mirrored across the water
+  { pos: { x: -45, y: 9, z: -92 }, normal: n(1, 0) }, // start/finish, along the berthed carriers
+  { pos: { x: 42, y: 8, z: -82 }, normal: n(0.99, 0.12) }, // out of the carrier run
+  { pos: { x: 0, y: 12, z: 20 }, normal: n(-0.75, 0.66) }, // swinging out over the basin
+  { pos: { x: -95, y: 30, z: 52 }, normal: n(-0.95, 0.3) }, // climbing west
+  { pos: { x: -192, y: 56, z: 62 }, normal: n(-0.6, -0.8) }, // ~60 m, around the west-arm crane
+  { pos: { x: -212, y: 12, z: -3 }, normal: n(0, -1) }, // descend between the container stacks
+  { pos: { x: -212, y: 10, z: -84 }, normal: n(0.5, -0.87) }, // far end, tight turn after
+  { pos: { x: -128, y: 8, z: -92 }, normal: n(1, 0) }, // back along the carriers to the line
 ]
 
 // Par thresholds, seconds for 3 laps. Each airframe gets its own par so no

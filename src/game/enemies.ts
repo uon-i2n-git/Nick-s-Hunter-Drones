@@ -83,7 +83,7 @@ export function stepEnemy(e: Enemy, player: V3, wind: V3, t: number, dt: number)
       target = {
         x: Math.max(-290, Math.min(135, e.pos.x + (ax / m) * 120)),
         y: Math.min(85, e.pos.y + 25),
-        z: Math.max(-115, Math.min(120, e.pos.z + (az / m) * 120)),
+        z: Math.max(-175, Math.min(120, e.pos.z + (az / m) * 120)),
       }
       speed = E2_FLEE_SPEED
     } else {
@@ -106,7 +106,7 @@ export function stepEnemy(e: Enemy, player: V3, wind: V3, t: number, dt: number)
   if (e.pos.x > 135) e.vel.x -= 30 * dt
   if (e.pos.x < -290) e.vel.x += 30 * dt
   if (e.pos.z > 120) e.vel.z -= 30 * dt
-  if (e.pos.z < -115) e.vel.z += 30 * dt
+  if (e.pos.z < -175) e.vel.z += 30 * dt
   e.pos.x += e.vel.x * dt
   e.pos.y = Math.max(25, e.pos.y + e.vel.y * dt)
   e.pos.z += e.vel.z * dt

@@ -28,7 +28,7 @@ function inWater(x: number, z: number): boolean {
   if (x > OCEAN_X) return true
   if (x > BASIN.x0 && x < BASIN.x1 && z > BASIN.z0 && z < BASIN.z1) return true
   if (x >= CHANNEL.x0 && x <= OCEAN_X && z > CHANNEL.z0 && z < CHANNEL.z1) return true
-  if (Math.hypot(x, z) > 760) return true // far surround
+  if (Math.hypot(x, z) > 900) return true // far surround
   return false
 }
 
@@ -46,9 +46,7 @@ function waterDist(x: number, z: number): number {
 export function terrainHeight(x: number, z: number): number {
   if (inWater(x, z)) return 0
   // the port flats: back-land behind the wharves stays workably flat
-  const portFlat =
-    (z >= 142 && z <= 330 && x >= -320 && x <= 150) || // south waterfront + office campus
-    (z <= -130 && z >= -260 && x >= -320 && x <= 150) // north port flats
+  const portFlat = z <= -130 && z >= -300 && x >= -320 && x <= 150 // north port flats
   if (portFlat) return 3
   // everywhere else rises away from the water — the city amphitheatre
   return 3.5 + Math.min(15, waterDist(x, z) * 0.07)
@@ -56,7 +54,7 @@ export function terrainHeight(x: number, z: number): number {
 
 // ---- port wharves (playable, unchanged race geometry) ----------------------
 export const WHARVES: Box[] = [
-  { x: 0, y: WHARF_DECK / 2, z: 150, w: 300, h: WHARF_DECK, d: 80 }, // main, south side of the basin
+  { x: 0, y: WHARF_DECK / 2, z: 135, w: 300, h: WHARF_DECK, d: 18 }, // Honeysuckle boardwalk on the south shore
   { x: -215, y: WHARF_DECK / 2, z: 10, w: 100, h: WHARF_DECK, d: 110 }, // west basin arm
   { x: -45, y: WHARF_DECK / 2, z: -155, w: 390, h: WHARF_DECK, d: 54 }, // north coal apron, x -240..150, z -128..-182
 ]
@@ -95,9 +93,9 @@ function stack(x: number, z: number, rows: number, cols: number, layers: number,
   return { x, y: WHARF_DECK + (layers * 2.6) / 2, z, w, h: layers * 2.6, d, rows, cols, layers }
 }
 export const STACKS: StackDef[] = [
-  // west basin arm: the race's stack-gap pair (unchanged)
-  stack(-238, 20, 2, 2, 3, true),
-  stack(-186, 20, 2, 2, 3, true),
+  // west basin arm: the race's stack-gap pair (mirrored with the course)
+  stack(-238, -8, 2, 2, 3, true),
+  stack(-186, -8, 2, 2, 3, true),
   // the full container terminal on the north port flats
   stack(60, -164, 2, 2, 3),
   stack(120, -166, 2, 2, 4),
@@ -106,12 +104,14 @@ export const STACKS: StackDef[] = [
   stack(90, -212, 2, 2, 3),
   stack(-230, -208, 2, 2, 3),
   stack(30, -240, 2, 2, 2),
+  stack(-80, -268, 2, 3, 3),
+  stack(60, -272, 2, 2, 3),
 ]
 
 // ---- harbour cranes + coal loaders --------------------------------------------
 export interface CraneDef { x: number; z: number; rot: number }
 export const CRANES: CraneDef[] = [
-  { x: -215, z: -36, rot: Math.PI / 2 }, // west basin arm, the 60 m race gate rounds it
+  { x: -215, z: 48, rot: Math.PI / 2 }, // west basin arm, the 60 m race gate rounds it
   // the working front: portal cranes along the north apron
   { x: -150, z: -168, rot: Math.PI },
   { x: -30, z: -168, rot: Math.PI },
@@ -143,7 +143,7 @@ export const NW_BEACH: Box = { x: -272, y: 0.5, z: -146, w: 72, h: 1, d: 40 }
 // the port moved across the water; these stand where the stacks were
 export interface OfficeDef extends Box { glass: boolean }
 function office(x: number, z: number, w: number, h: number, d: number, glass = false): OfficeDef {
-  return { x, y: WHARF_DECK + h / 2, z, w, h, d, glass }
+  return { x, y: terrainHeight(x, z) + h / 2, z, w, h, d, glass }
 }
 export const OFFICES: OfficeDef[] = [
   // waterfront row along the wharf deck (race corridor stays clear, z < 148)
@@ -189,7 +189,7 @@ export const BUOYS: Array<{ x: number; z: number; green: boolean }> = [
   { x: 470, z: 52, green: false }, { x: 470, z: -16, green: true },
 ]
 
-export const SPAWN: V3 = { x: -110, y: WHARF_DECK + 0.35, z: 114 }
+export const SPAWN: V3 = { x: -110, y: WHARF_DECK + 0.35, z: -135 } // on the coal apron, facing down the carrier run
 export const SPAWN_YAW = -Math.PI / 2
 
 // ---- geofence -------------------------------------------------------------------
@@ -201,8 +201,8 @@ function southLimit(x: number): number {
   return 72 // channel south bank
 }
 function northLimit(x: number): number {
-  if (x < 140) return -185 // north apron
-  if (x < 165) return -185 + ((x - 140) / 25) * 147
+  if (x < 140) return -305 // extended port flats behind the apron
+  if (x < 165) return -305 + ((x - 140) / 25) * 267
   return -38 // channel north bank
 }
 export function fenceExcess(x: number, z: number): { ox: number; oz: number; m: number } | null {
@@ -242,8 +242,6 @@ export function fenceExcess(x: number, z: number): { ox: number; oz: number; m: 
 // ---- collision --------------------------------------------------------------------
 const SOLIDS: Box[] = [
   ...WHARVES,
-  // south back-land (flat, reachable office campus)
-  { x: -85, y: 1.5, z: 235, w: 470, h: 3, d: 190 },
   NW_BEACH,
   ...OFFICES,
   ...STACKS,
@@ -265,7 +263,7 @@ const SOLIDS: Box[] = [
   { x: 163, y: 14, z: 110, w: 22, h: 24, d: 60 }, // basin east corner, south of channel
   { x: 163, y: 14, z: -85, w: 22, h: 24, d: 90 }, // basin east corner, north of channel
   { x: -60, y: 5, z: 345, w: 460, h: 8, d: 26 }, // back of the port flats
-  { x: -80, y: 5, z: -198, w: 420, h: 8, d: 24 }, // behind the north apron
+  { x: -80, y: 5, z: -314, w: 480, h: 8, d: 24 }, // back of the extended port flats
   // Nobbys-style headland + the buildings on top
   { x: NOBBYS.x, y: NOBBYS.height / 2, z: NOBBYS.z, w: 80, h: NOBBYS.height, d: 74 },
   { x: LIGHTHOUSE.x, y: NOBBYS.height + 5, z: LIGHTHOUSE.z, w: 5, h: 10, d: 5 },
