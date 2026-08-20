@@ -47,8 +47,8 @@ export function terrainHeight(x: number, z: number): number {
   if (inWater(x, z)) return 0
   // the port flats: back-land behind the wharves stays workably flat
   const portFlat =
-    (z >= 142 && z <= 330 && x >= -320 && x <= 150) || // south hinterland
-    (z <= -130 && z >= -185 && x >= -320 && x <= 150) // north apron strip
+    (z >= 142 && z <= 330 && x >= -320 && x <= 150) || // south waterfront + office campus
+    (z <= -130 && z >= -260 && x >= -320 && x <= 150) // north port flats
   if (portFlat) return 3
   // everywhere else rises away from the water — the city amphitheatre
   return 3.5 + Math.min(15, waterDist(x, z) * 0.07)
@@ -58,7 +58,7 @@ export function terrainHeight(x: number, z: number): number {
 export const WHARVES: Box[] = [
   { x: 0, y: WHARF_DECK / 2, z: 150, w: 300, h: WHARF_DECK, d: 80 }, // main, south side of the basin
   { x: -215, y: WHARF_DECK / 2, z: 10, w: 100, h: WHARF_DECK, d: 110 }, // west basin arm
-  { x: -80, y: WHARF_DECK / 2, z: -155, w: 460, h: WHARF_DECK, d: 54 }, // north coal apron, z -128..-182
+  { x: -45, y: WHARF_DECK / 2, z: -155, w: 390, h: WHARF_DECK, d: 54 }, // north coal apron, x -240..150, z -128..-182
 ]
 export const NORTH_APRON = WHARVES[2]
 
@@ -95,61 +95,87 @@ function stack(x: number, z: number, rows: number, cols: number, layers: number,
   return { x, y: WHARF_DECK + (layers * 2.6) / 2, z, w, h: layers * 2.6, d, rows, cols, layers }
 }
 export const STACKS: StackDef[] = [
-  // main wharf (race geometry — unchanged)
-  stack(-95, 165, 2, 2, 3),
-  stack(-55, 168, 2, 1, 2),
-  stack(60, 165, 2, 2, 3),
-  stack(100, 168, 2, 1, 2),
   // west basin arm: the race's stack-gap pair (unchanged)
   stack(-238, 20, 2, 2, 3, true),
   stack(-186, 20, 2, 2, 3, true),
-  // south hinterland container park
-  stack(-60, 235, 2, 3, 3),
-  stack(-180, 240, 2, 3, 3),
-  stack(60, 240, 2, 2, 2),
-  // north coal apron
+  // the full container terminal on the north port flats
   stack(60, -164, 2, 2, 3),
   stack(120, -166, 2, 2, 4),
-  stack(-300, -166, 2, 1, 3),
+  stack(-30, -208, 2, 3, 3),
+  stack(-150, -212, 2, 3, 4),
+  stack(90, -212, 2, 2, 3),
+  stack(-230, -208, 2, 2, 3),
+  stack(30, -240, 2, 2, 2),
 ]
 
 // ---- harbour cranes + coal loaders --------------------------------------------
 export interface CraneDef { x: number; z: number; rot: number }
 export const CRANES: CraneDef[] = [
-  // main wharf (unchanged positions — the race threads these)
-  { x: -80, z: 122, rot: 0 },
-  { x: 0, z: 122, rot: 0.3 },
-  { x: 80, z: 122, rot: -0.2 },
   { x: -215, z: -36, rot: Math.PI / 2 }, // west basin arm, the 60 m race gate rounds it
-  // north apron container end (face south over the basin)
+  // the working front: portal cranes along the north apron
   { x: -150, z: -168, rot: Math.PI },
-  { x: 0, z: -168, rot: Math.PI },
-  // hinterland rail yard
-  { x: -260, z: 230, rot: 0.15 },
+  { x: -30, z: -168, rot: Math.PI },
+  { x: 100, z: -168, rot: Math.PI + 0.15 },
+  // rail yard cranes over the back container rows
+  { x: -90, z: -214, rot: Math.PI },
+  { x: 40, z: -214, rot: Math.PI - 0.1 },
 ]
 
 /** rail-mounted coal shiploaders along the north apron edge */
 export interface LoaderDef { x: number; z: number }
 export const LOADERS: LoaderDef[] = [
-  { x: -270, z: -145 },
-  { x: -180, z: -145 },
-  { x: -90, z: -145 },
-  { x: 25, z: -145 },
+  { x: -220, z: -145 },
+  { x: -130, z: -145 },
+  { x: -40, z: -145 },
+  { x: 50, z: -145 },
 ]
 
 export const COAL_PILES: Box[] = [
-  { x: -240, y: 6 + WHARF_DECK, z: -168, w: 110, h: 12, d: 16 },
-  { x: -60, y: 5 + WHARF_DECK, z: -168, w: 90, h: 10, d: 14 },
+  { x: -190, y: 6 + WHARF_DECK, z: -168, w: 90, h: 12, d: 16 },
+  { x: -170, y: 5 + WHARF_DECK, z: -212, w: 80, h: 10, d: 14 },
+]
+
+
+// ---- north-west beach (sandy shoreline with dunes) ---------------------------
+export const NW_BEACH: Box = { x: -272, y: 0.5, z: -146, w: 72, h: 1, d: 40 }
+
+// ---- Honeysuckle-style office precinct on the south wharf ---------------------
+// the port moved across the water; these stand where the stacks were
+export interface OfficeDef extends Box { glass: boolean }
+function office(x: number, z: number, w: number, h: number, d: number, glass = false): OfficeDef {
+  return { x, y: WHARF_DECK + h / 2, z, w, h, d, glass }
+}
+export const OFFICES: OfficeDef[] = [
+  // waterfront row along the wharf deck (race corridor stays clear, z < 148)
+  office(-130, 166, 26, 16, 20, true),
+  office(-95, 170, 24, 13, 22),
+  office(-58, 165, 28, 20, 20, true),
+  office(-18, 169, 26, 12, 22),
+  office(22, 165, 28, 18, 20, true),
+  office(62, 170, 24, 14, 22),
+  office(102, 166, 28, 22, 20, true),
+  office(136, 170, 20, 11, 18),
+  // campus behind, with the towers that left the north-east corner
+  office(-240, 235, 34, 18, 26),
+  office(-185, 250, 30, 24, 24, true),
+  office(-120, 235, 30, 15, 26),
+  office(-60, 255, 30, 34, 24, true),
+  office(-5, 235, 32, 26, 24),
+  office(55, 258, 30, 48, 26, true),
+  office(115, 240, 30, 40, 24, true),
+  office(-150, 300, 34, 55, 28, true),
+  office(-40, 305, 34, 62, 28, true),
+  office(70, 305, 32, 45, 26),
+  office(-250, 295, 30, 20, 24),
 ]
 
 // ---- ships ---------------------------------------------------------------------
 export interface ShipDef extends Box { rot: number; kind: 'bulk' | 'tug' }
 export const SHIPS: ShipDef[] = [
-  // moored along the main wharf; its gap with the wharf edge is the race corridor
-  { x: -30, y: 3, z: 88, w: 110, h: 6, d: 18, rot: 0, kind: 'bulk' },
-  // berthed against the north coal apron
-  { x: -200, y: 3, z: -116, w: 120, h: 6, d: 18, rot: 0, kind: 'bulk' },
-  { x: -40, y: 3, z: -116, w: 95, h: 6, d: 16, rot: 0, kind: 'bulk' },
+  // three bulk carriers berthed along the north port front
+  { x: -190, y: 3, z: -116, w: 120, h: 6, d: 18, rot: 0, kind: 'bulk' },
+  { x: -45, y: 3, z: -116, w: 95, h: 6, d: 16, rot: 0, kind: 'bulk' },
+  { x: 75, y: 3, z: -114, w: 105, h: 6, d: 17, rot: 0.04, kind: 'bulk' },
   // inbound up the channel
   { x: 330, y: 3, z: 20, w: 100, h: 6, d: 17, rot: 0.06, kind: 'bulk' },
   { x: 110, y: 2, z: 60, w: 30, h: 4, d: 9, rot: 0.2, kind: 'tug' },
@@ -216,8 +242,10 @@ export function fenceExcess(x: number, z: number): { ox: number; oz: number; m: 
 // ---- collision --------------------------------------------------------------------
 const SOLIDS: Box[] = [
   ...WHARVES,
-  // port back-land (flat, reachable)
+  // south back-land (flat, reachable office campus)
   { x: -85, y: 1.5, z: 235, w: 470, h: 3, d: 190 },
+  NW_BEACH,
+  ...OFFICES,
   ...STACKS,
   ...SHIPS.map((s) => ({ ...s })), // rotation ignored, close enough
   ...CRANES.flatMap((c) => [
@@ -301,5 +329,6 @@ export const STATIC_TAGGABLES: Taggable[] = [
   { id: 'qwt', label: 'QUEENS WHARF TOWER', pos: { x: 205, y: 24, z: 84 } },
   { id: 'cathedral', label: 'CHRIST CHURCH CATHEDRAL', pos: { x: 280, y: 70, z: 360 } },
   { id: 'ferry', label: 'STOCKTON FERRY', pos: { x: 90, y: 6, z: -120 } },
-  { id: 'coal', label: 'COAL TERMINAL', pos: { x: -150, y: 18, z: -160 } },
+  { id: 'coal', label: 'COAL TERMINAL', pos: { x: -150, y: 18, z: -170 } },
+  { id: 'offices', label: 'HARBOURSIDE OFFICES', pos: { x: -40, y: 40, z: 300 } },
 ]
