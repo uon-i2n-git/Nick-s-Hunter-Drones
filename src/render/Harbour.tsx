@@ -9,7 +9,7 @@ import * as THREE from 'three'
 import {
   WHARVES, STACKS, CRANES, LOADERS, SHIPS, BUOYS, COAL_PILES,
   NOBBYS, LIGHTHOUSE, BREAKWALL, STOCKTON_BW, WHARF_DECK,
-  BASIN, CHANNEL, OCEAN_X, terrainHeight, OFFICES, NW_BEACH,
+  BASIN, CHANNEL, OCEAN_X, terrainHeight, OFFICES, NW_BEACH, TRAIN,
 } from '../game/world.ts'
 import { windAt, type WeatherDef } from '../game/weather.ts'
 import { Water } from './Water.tsx'
@@ -74,7 +74,7 @@ const DIRT = new THREE.Color('#7d7358')
 
 function Terrain() {
   const mesh = useMemo(() => {
-    const x0 = -900, x1 = 700, z0 = -480, z1 = 480, step = 18
+    const x0 = -900, x1 = 700, z0 = -700, z1 = 700, step = 18
     const nx = Math.ceil((x1 - x0) / step)
     const nz = Math.ceil((z1 - z0) / step)
     const geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz)
@@ -217,7 +217,7 @@ function PortMachines() {
         bogie: { size: [5, 2, 3], locals: [[-8, 1, 0], [8, 1, 0]] },
         girder: { size: [20, 3.2, 4], locals: [[0, 26, 0]] },
         boom: { size: [2.2, 2.2, 36], locals: [[0, 26.5, 16, 0.1]] },
-        weight: { size: [6, 4.5, 6], locals: [[0, 24.5, -9]] },
+        weight: { size: [6, 4.5, 6], locals: [[0, 24.5, -5]] },
       },
       { leg: '#4e5d54', bogie: '#333a42', girder: '#4e5d54', boom: '#5d6e63', weight: '#333a42' },
       WHARF_DECK,
@@ -616,12 +616,28 @@ function City({ gusty }: { gusty: boolean }) {
 
 // sea walls + promenades along the gorge, streets, poles, trees
 function Foreshore() {
-  const { poles, lamps, trunks, crowns, roads, walls } = useMemo(() => {
+  const { poles, lamps, trunks, crowns, roads, walls, paint } = useMemo(() => {
     const rnd = mulberry32(17)
     const poleItems: Inst[] = []
     const lampItems: Inst[] = []
     const trunkItems: Inst[] = []
     const crownItems: Inst[] = []
+    const paintItems: Inst[] = []
+    // apron floodlight masts + painted lane dashes around the pad
+    for (let x = -255; x <= 140; x += 55) {
+      poleItems.push({ m: mat4(x, WHARF_DECK + 3.9, -131, 0, 1.3, 1.5, 1.3) })
+      lampItems.push({ m: mat4(x, WHARF_DECK + 8, -131, 0, 1.4, 1.4, 1.4) })
+    }
+    for (const rowZ of [-140, -152]) {
+      for (let x = -230; x <= 140; x += 18) {
+        paintItems.push({ m: mat4(x, WHARF_DECK + 0.03, rowZ, 0, 6, 0.02, 0.4) })
+      }
+    }
+    // painted square around the launch pad
+    paintItems.push({ m: mat4(-110, WHARF_DECK + 0.03, -130.5, 0, 9.5, 0.02, 0.5) })
+    paintItems.push({ m: mat4(-110, WHARF_DECK + 0.03, -139.5, 0, 9.5, 0.02, 0.5) })
+    paintItems.push({ m: mat4(-105.5, WHARF_DECK + 0.03, -135, 0, 0.5, 0.02, 9.5) })
+    paintItems.push({ m: mat4(-114.5, WHARF_DECK + 0.03, -135, 0, 0.5, 0.02, 9.5) })
     // promenade furniture along the gorge south bank
     for (let x = 175; x <= 590; x += 13) {
       if (x > 460 && x < 545) continue
@@ -697,12 +713,14 @@ function Foreshore() {
       crowns: makeInstanced(new THREE.IcosahedronGeometry(1.5, 0), new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), crownItems),
       roads: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: '#3a3f43', roughness: 0.95 }), roadItems),
       walls: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: '#8a857b', roughness: 0.9 }), wallItems),
+      paint: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: '#c9d2d8', transparent: true, opacity: 0.55 }), paintItems),
     }
   }, [])
   return (
     <group>
       <primitive object={walls} />
       <primitive object={roads} />
+      <primitive object={paint} />
       <group name="promenadeDetail">
         <primitive object={poles} />
         <primitive object={lamps} />
@@ -814,6 +832,51 @@ function PortProps() {
   )
 }
 
+// loaded coal train drawn up on the back flats
+function CoalTrain() {
+  const { wagons, loads, rails } = useMemo(() => {
+    const rnd = mulberry32(67)
+    const wagonItems: Inst[] = []
+    const loadItems: Inst[] = []
+    for (let i = 0; i < TRAIN.wagons; i++) {
+      const x = TRAIN.x0 + i * (TRAIN.wagonLen + TRAIN.gap) + TRAIN.wagonLen / 2
+      wagonItems.push({
+        m: mat4(x, WHARF_DECK + 1.9, TRAIN.z, 0, TRAIN.wagonLen, 2.6, 3.2),
+        c: new THREE.Color(rnd() < 0.5 ? '#4a3f38' : '#3c4046'),
+      })
+      loadItems.push({ m: mat4(x, WHARF_DECK + 3.35, TRAIN.z, 0, TRAIN.wagonLen * 0.88, 0.9, 2.5) })
+    }
+    const railItems: Inst[] = [
+      { m: mat4(-95, WHARF_DECK + 0.11, TRAIN.z - 1.1, 0, 250, 0.22, 0.3) },
+      { m: mat4(-95, WHARF_DECK + 0.11, TRAIN.z + 1.1, 0, 250, 0.22, 0.3) },
+    ]
+    const box = new THREE.BoxGeometry(1, 1, 1)
+    return {
+      wagons: makeInstanced(box, new THREE.MeshStandardMaterial({ roughness: 0.9 }), wagonItems, true),
+      loads: makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#191b1d', roughness: 1 }), loadItems),
+      rails: makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#6a6e72', metalness: 0.4, roughness: 0.5 }), railItems),
+    }
+  }, [])
+  return (
+    <group>
+      <primitive object={wagons} />
+      <primitive object={loads} />
+      <primitive object={rails} />
+      {/* locomotive at the head */}
+      <group position={[TRAIN.locoX, WHARF_DECK, TRAIN.z]}>
+        <mesh position={[0, 2.2, 0]} castShadow>
+          <boxGeometry args={[16, 3.4, 3.4]} />
+          <meshStandardMaterial color="#8a4a3b" roughness={0.8} />
+        </mesh>
+        <mesh position={[5, 4.6, 0]} castShadow>
+          <boxGeometry args={[5, 1.6, 3.2]} />
+          <meshStandardMaterial color="#33383e" roughness={0.8} />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
 function Buoys() {
   const mesh = useMemo(() => {
     const items: Inst[] = BUOYS.map((b) => ({
@@ -837,6 +900,12 @@ function OuterRises() {
       { m: mat4(240, 8, -400, 0.2, 200, 38, 100), c: new THREE.Color('#5c6046') },
       { m: mat4(460, 8, -350, -0.3, 170, 32, 95), c: new THREE.Color('#606449') },
     ]
+    // green ridges across the far north so the skyline is land, not sea
+    moundItems.push(
+      { m: mat4(-80, 14, -520, 0.4, 260, 60, 140), c: new THREE.Color('#59604a') },
+      { m: mat4(220, 14, -560, 0.1, 220, 46, 120), c: new THREE.Color('#5d6448') },
+      { m: mat4(-340, 12, -500, 0.7, 200, 40, 110), c: new THREE.Color('#565c44') },
+    )
     const suburbItems: Inst[] = []
     for (let i = 0; i < 40; i++) {
       const x = -160 + rnd() * 460
@@ -861,16 +930,59 @@ function OuterRises() {
 }
 
 function FarWestIndustry() {
-  const mesh = useMemo(() => {
+  const meshes = useMemo(() => {
     const rnd = mulberry32(53)
-    const items: Inst[] = []
+    const blocks: Inst[] = []
+    const roofItems: Inst[] = []
+    const stackItems: Inst[] = []
+    const tipItems: Inst[] = []
+    const tankItems: Inst[] = []
+    const windowItems: Inst[] = []
     for (let i = 0; i < 26; i++) {
       const x = -380 - rnd() * 160
       const z = -200 + rnd() * 380
       const h = 10 + rnd() * 30
       const c = 0.3 + rnd() * 0.12
-      // seated on the western land, sunk a little so sloped ground never shows a gap
-      items.push({ m: mat4(x, terrainHeight(x, z) + h / 2 - 1, z, rnd(), 24 + rnd() * 36, h, 20 + rnd() * 26), c: new THREE.Color(c * 0.95, c, c * 1.05) })
+      // mostly grid-aligned, like a real industrial estate
+      const ry = (rnd() - 0.5) * 0.16
+      const w = 24 + rnd() * 36
+      const d = 20 + rnd() * 26
+      const gy = terrainHeight(x, z) - 1 // sunk a little so sloped ground never shows a gap
+      blocks.push({ m: mat4(x, gy + h / 2, z, ry, w, h, d), c: new THREE.Color(c * 0.95, c, c * 1.05) })
+      // rooftop plant + vents
+      const nRoof = 1 + Math.floor(rnd() * 2)
+      for (let r = 0; r < nRoof; r++) {
+        const ox = (rnd() - 0.5) * w * 0.5
+        const oz = (rnd() - 0.5) * d * 0.5
+        roofItems.push({
+          m: mat4(x + ox * Math.cos(ry) + oz * Math.sin(ry), gy + h + 1.1, z - ox * Math.sin(ry) + oz * Math.cos(ry), ry, 4 + rnd() * 6, 2.2, 3 + rnd() * 4),
+          c: new THREE.Color(c * 0.8, c * 0.82, c * 0.86),
+        })
+      }
+      // a flue stack on roughly a third, with a warning light on the tall ones
+      if (rnd() < 0.36) {
+        const H = h + 8 + rnd() * 14
+        const sx = x + (rnd() - 0.5) * w * 0.4
+        const sz = z + (rnd() - 0.5) * d * 0.4
+        stackItems.push({ m: mat4(sx, gy + H / 2, sz, 0, 1.6 + rnd(), H, 1.6 + rnd()) })
+        if (H > 34) tipItems.push({ m: mat4(sx, gy + H + 0.5, sz) })
+      }
+      // lit window strips on the taller faces toward the water
+      if (x > -480 && h > 13) {
+        const ox = w / 2 + 0.2
+        windowItems.push({
+          m: mat4(x + ox * Math.cos(ry), gy + h * 0.55, z - ox * Math.sin(ry), ry + Math.PI / 2, d * 0.82, h * 0.55, 1),
+        })
+      }
+    }
+    // tank farm on the flats nearest the basin
+    for (let i = 0; i < 9; i++) {
+      const x = -348 - rnd() * 34
+      const z = -120 + i * 28 + (rnd() - 0.5) * 10
+      const r = 5 + rnd() * 4
+      const h = 7 + rnd() * 5
+      const gy = terrainHeight(x, z) - 0.5
+      tankItems.push({ m: mat4(x, gy + h / 2, z, 0, r, h, r), c: new THREE.Color(0.62 + rnd() * 0.08, 0.63, 0.6) })
     }
     // a second, hazier rank further out toward the western horizon
     for (let i = 0; i < 14; i++) {
@@ -878,11 +990,42 @@ function FarWestIndustry() {
       const z = -240 + rnd() * 460
       const h = 8 + rnd() * 26
       const c = 0.32 + rnd() * 0.1
-      items.push({ m: mat4(x, terrainHeight(x, z) + h / 2 - 1, z, rnd(), 28 + rnd() * 40, h, 24 + rnd() * 30), c: new THREE.Color(c * 0.95, c, c * 1.05) })
+      blocks.push({ m: mat4(x, terrainHeight(x, z) + h / 2 - 1, z, rnd(), 28 + rnd() * 40, h, 24 + rnd() * 30), c: new THREE.Color(c * 0.95, c, c * 1.05) })
     }
-    return makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.95 }), items)
+    const boxGeo = new THREE.BoxGeometry(1, 1, 1)
+    return [
+      makeInstanced(boxGeo, new THREE.MeshStandardMaterial({ roughness: 0.95 }), blocks),
+      makeInstanced(boxGeo, new THREE.MeshStandardMaterial({ roughness: 0.9 }), roofItems),
+      makeInstanced(new THREE.CylinderGeometry(1, 1.25, 1, 8), new THREE.MeshStandardMaterial({ color: '#7d7a74', roughness: 0.85 }), stackItems),
+      makeInstanced(new THREE.SphereGeometry(0.7, 6, 5), new THREE.MeshStandardMaterial({ color: '#ff5540', emissive: '#ff4030', emissiveIntensity: 2 }), tipItems),
+      makeInstanced(new THREE.CylinderGeometry(1, 1, 1, 12), new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0.2 }), tankItems),
+      makeInstanced(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({ map: windowsTexture(), transparent: true, opacity: 0.4, color: '#9aa2ac', depthWrite: false }),
+        windowItems,
+      ),
+    ]
   }, [])
-  return <primitive object={mesh} />
+  return (
+    <group>
+      {meshes.map((m, i) => (
+        <primitive key={i} object={m} />
+      ))}
+      {/* elevated conveyor tying the silo corner to the western works */}
+      <group>
+        <mesh position={[-350, 13, -196]} rotation-y={0.18} castShadow>
+          <boxGeometry args={[92, 2.2, 1.8]} />
+          <meshStandardMaterial color="#5d6a60" roughness={0.85} />
+        </mesh>
+        {[-318, -344, -370, -390].map((lx, i) => (
+          <mesh key={i} position={[lx, 6, -196 - (lx + 350) * 0.18]}>
+            <boxGeometry args={[1.2, 13, 1.2]} />
+            <meshStandardMaterial color="#4e5852" roughness={0.9} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  )
 }
 
 // ---------------------------------------------------------------- dynamics
@@ -892,6 +1035,8 @@ function Dynamics({ weather }: { weather: WeatherDef }) {
   const tugRef = useRef<THREE.Group>(null)
   const tugWake = useRef<THREE.Mesh>(null)
   const gullsRef = useRef<THREE.InstancedMesh>(null)
+  const sockYaw = useRef<THREE.Group>(null)
+  const sockPitch = useRef<THREE.Group>(null)
   const { scene, camera } = useThree()
 
   const gullGeo = useMemo(() => {
@@ -945,6 +1090,13 @@ function Dynamics({ weather }: { weather: WeatherDef }) {
       }
       gulls.instanceMatrix.needsUpdate = true
     }
+    // windsock by the launch pad: points downwind, droops when calm
+    if (sockYaw.current && sockPitch.current) {
+      const w = windAt(weather, { x: -120, y: 8, z: -128 }, t)
+      const sp = Math.hypot(w.x, w.z)
+      if (sp > 0.2) sockYaw.current.rotation.y = Math.atan2(w.x, w.z)
+      sockPitch.current.rotation.x = (1 - Math.min(1, sp / 9)) * 1.15 + Math.sin(t * 5) * 0.04 * Math.min(1, sp / 4)
+    }
     // surf pulse + distance culling
     const surf = scene.getObjectByName('surf') as THREE.InstancedMesh | undefined
     if (surf) (surf.material as THREE.MeshBasicMaterial).opacity = 0.26 + 0.18 * (0.5 + 0.5 * Math.sin(t * 1.1)) * (1 + weather.whitecaps)
@@ -977,6 +1129,21 @@ function Dynamics({ weather }: { weather: WeatherDef }) {
           <planeGeometry args={[4, 16]} />
           <meshBasicMaterial color="#dfe8ec" transparent opacity={0.35} depthWrite={false} />
         </mesh>
+      </group>
+      {/* windsock beside the launch pad */}
+      <group position={[-120, WHARF_DECK, -128]}>
+        <mesh position={[0, 3, 0]}>
+          <cylinderGeometry args={[0.08, 0.12, 6, 6]} />
+          <meshStandardMaterial color="#d8d5cc" />
+        </mesh>
+        <group ref={sockYaw} position={[0, 6, 0]}>
+          <group ref={sockPitch}>
+            <mesh position={[0, 0, 1.35]} rotation-x={Math.PI / 2}>
+              <coneGeometry args={[0.42, 2.6, 8, 1, true]} />
+              <meshStandardMaterial color="#ff7a1a" side={THREE.DoubleSide} roughness={0.8} />
+            </mesh>
+          </group>
+        </group>
       </group>
       <group ref={tugRef}>
         <mesh position={[0, 1, 0]}>
@@ -1076,6 +1243,7 @@ export function Harbour({ weather }: { weather: WeatherDef }) {
         <Ship key={i} x={s.x} z={s.z} w={s.w} d={s.d} rot={s.rot} kind={s.kind} />
       ))}
       <PortProps />
+      <CoalTrain />
       <Buoys />
 
       <Breakwater bw={BREAKWALL} color="#6e6a60" />

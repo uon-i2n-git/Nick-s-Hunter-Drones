@@ -130,6 +130,9 @@ export const LOADERS: LoaderDef[] = [
   { x: 50, z: -145 },
 ]
 
+// a loaded coal train drawn up on the back flats, between the yard road rows
+export const TRAIN = { z: -226, x0: -210, wagons: 14, wagonLen: 12, gap: 1.4, locoX: -14 }
+
 export const COAL_PILES: Box[] = [
   { x: -190, y: 6 + WHARF_DECK, z: -168, w: 90, h: 12, d: 16 },
   { x: -170, y: 5 + WHARF_DECK, z: -212, w: 80, h: 10, d: 14 },
@@ -255,6 +258,7 @@ const SOLIDS: Box[] = [
     { x: l.x + 8, y: 14 + WHARF_DECK, z: l.z, w: 3, h: 28, d: 3 },
   ]),
   ...COAL_PILES,
+  { x: -108, y: WHARF_DECK + 2.2, z: TRAIN.z, w: 208, h: 4.4, d: 3.6 }, // the coal train
   ...wallSegments(BREAKWALL, 5),
   ...wallSegments(STOCKTON_BW, 5),
   // facade rows backing the fence lines so a hard lean bonks a wall
