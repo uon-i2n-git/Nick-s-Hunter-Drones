@@ -55,10 +55,9 @@ export function terrainHeight(x: number, z: number): number {
 // ---- port wharves (playable, unchanged race geometry) ----------------------
 export const WHARVES: Box[] = [
   { x: 0, y: WHARF_DECK / 2, z: 135, w: 300, h: WHARF_DECK, d: 18 }, // Honeysuckle boardwalk on the south shore
-  { x: -240, y: WHARF_DECK / 2, z: 10, w: 150, h: WHARF_DECK, d: 110 }, // west pier, joined to the western bank
   { x: -45, y: WHARF_DECK / 2, z: -155, w: 390, h: WHARF_DECK, d: 54 }, // north coal apron, x -240..150, z -128..-182
 ]
-export const NORTH_APRON = WHARVES[2]
+export const NORTH_APRON = WHARVES[1]
 
 // ---- harbour mouth: headland + squat lighthouse, moles either side -----------
 export const NOBBYS = { x: 585, z: 108, height: 26, baseR: 44, topR: 30 }
@@ -93,9 +92,6 @@ function stack(x: number, z: number, rows: number, cols: number, layers: number,
   return { x, y: WHARF_DECK + (layers * 2.6) / 2, z, w, h: layers * 2.6, d, rows, cols, layers }
 }
 export const STACKS: StackDef[] = [
-  // west basin arm: the race's stack-gap pair (mirrored with the course)
-  stack(-238, -8, 2, 2, 3, true),
-  stack(-186, -8, 2, 2, 3, true),
   // the full container terminal on the north port flats
   stack(60, -164, 2, 2, 3),
   stack(120, -166, 2, 2, 4),
@@ -111,7 +107,6 @@ export const STACKS: StackDef[] = [
 // ---- harbour cranes + coal loaders --------------------------------------------
 export interface CraneDef { x: number; z: number; rot: number }
 export const CRANES: CraneDef[] = [
-  { x: -215, z: 48, rot: Math.PI / 2 }, // west basin arm, the 60 m race gate rounds it
   // the working front: portal cranes along the north apron
   { x: -150, z: -168, rot: Math.PI },
   { x: -30, z: -168, rot: Math.PI },

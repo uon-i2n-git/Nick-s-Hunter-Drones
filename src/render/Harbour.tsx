@@ -156,9 +156,13 @@ function Terrain() {
       const h = terrainHeight(x, z)
       pos.setY(i, h === 0 ? -1.8 : h - 0.05)
       const nearBeach = x < -215 && x > -330 && z < -125 && z > -190
+      const northEstate = z < -305 && z > -490
       if (h === 0) c.copy(ASPHALT)
       else if (nearBeach) c.set('#c4ad7e').offsetHSL(0, 0, (rnd() - 0.5) * 0.04)
       else if (h === 3) c.copy(rnd() < 0.6 ? ASPHALT : DIRT).offsetHSL(0, 0, (rnd() - 0.5) * 0.05)
+      else if (northEstate && x > -60 && x < 158) c.set('#6a5a3e').offsetHSL(0, 0, (rnd() - 0.5) * 0.06) // vineyard soil
+      else if (northEstate && x > -100 && x <= -60) c.set('#8d8578').offsetHSL(0, 0, (rnd() - 0.5) * 0.04) // resort grounds
+      else if (northEstate && x > -320 && x <= -100) c.set('#5f8f42').offsetHSL(0, (rnd() - 0.5) * 0.04, (rnd() - 0.5) * 0.05) // fairways
       else c.copy(rnd() < 0.75 ? GRASS : GRASS2).offsetHSL(0, (rnd() - 0.5) * 0.05, (rnd() - 0.5) * 0.06)
       colors[i * 3] = c.r
       colors[i * 3 + 1] = c.g
@@ -193,13 +197,9 @@ function Shoreline() {
     // basin edges (the boardwalk covers the south x -150..150, the apron the north)
     addRun(-310, 140, -152, 140, 5, false) // south-west foreshore edge
     addRun(-150, 143, 150, 143, 6, false) // along the Honeysuckle boardwalk front
-    addRun(-310, 72, -310, 138, 3, true) // west bank, south of the pier
-    addRun(-310, -50, -310, -126, 3, false) // west bank, north of the pier
+    addRun(-310, 72, -310, 138, 3, true) // west bank, south half
+    addRun(-310, -126, -310, 70, 6, false) // west bank, north half
     addRun(-310, -126, -240, -126, 4, false) // the sandy beach shoreline
-    // waterline foam around the west pier's three open faces
-    addRun(-164, -44, -164, 64, 3, false)
-    addRun(-312, 66, -166, 66, 4, false)
-    addRun(-312, -44, -166, -44, 4, false)
     addRun(152, -126, 152, -32, 4, false) // basin east wall, north of the gorge
     addRun(152, 70, 152, 140, 3, false) // basin east wall, south of the gorge
     // channel gorge banks
@@ -811,7 +811,6 @@ function Foreshore() {
     }
     roadItems.push({ m: mat4(-80, 3.06, -186, 0, 450, 0.14, 8) }) // behind the apron
     roadItems.push({ m: mat4(-80, 3.06, -252, 0, 450, 0.14, 8) }) // through the back flats
-    roadItems.push({ m: mat4(-256, 3.08, 10, 0, 116, 0.14, 7) }) // access road onto the west pier
     return {
       poles: makeInstanced(new THREE.CylinderGeometry(0.09, 0.12, 5.2, 6), new THREE.MeshStandardMaterial({ color: '#454c53' }), poleItems),
       lamps: makeInstanced(new THREE.SphereGeometry(0.22, 6, 5), new THREE.MeshStandardMaterial({ color: '#fff2c0', emissive: '#ffdf90', emissiveIntensity: 1.6 }), lampItems),
@@ -934,6 +933,131 @@ function PortProps() {
       <primitive object={silos} />
       <primitive object={sheds} />
       <primitive object={piles} />
+    </group>
+  )
+}
+
+// the estate behind the port: vineyards east, golf west, and the
+// hotel + convention centre between them. All beyond the geofence — scenery.
+function NorthEstate({ gusty }: { gusty: boolean }) {
+  const { vines, bunkers, flags, flagTips, trunks, crowns, windows } = useMemo(() => {
+    const rnd = mulberry32(89)
+    const vineItems: Inst[] = []
+    // vine rows run east-west, along the terrain contours
+    for (const block of [
+      { x0: -44, x1: 152, z0: -318, z1: -388 },
+      { x0: -30, x1: 152, z0: -398, z1: -476 },
+    ]) {
+      for (let z = block.z0; z > block.z1; z -= 5) {
+        const gy = terrainHeight((block.x0 + block.x1) / 2, z)
+        const len = block.x1 - block.x0 - rnd() * 26
+        vineItems.push({
+          m: mat4(block.x0 + len / 2 + rnd() * 10, gy + 0.55, z, 0, len, 1.05, 0.7),
+          c: new THREE.Color(rnd() < 0.5 ? '#3f5c33' : '#48663a'),
+        })
+      }
+    }
+    // golf: bunkers, pins and tree clumps on the tinted fairway ground
+    const bunkerItems: Inst[] = []
+    const flagItems: Inst[] = []
+    const tipItems: Inst[] = []
+    const trunkItems: Inst[] = []
+    const crownItems: Inst[] = []
+    for (let i = 0; i < 12; i++) {
+      const x = -290 + rnd() * 175
+      const z = -320 - rnd() * 150
+      bunkerItems.push({ m: mat4(x, terrainHeight(x, z) + 0.12, z, rnd(), 5 + rnd() * 6, 0.3, 4 + rnd() * 4) })
+    }
+    for (let i = 0; i < 6; i++) {
+      const x = -280 + rnd() * 165
+      const z = -330 - rnd() * 130
+      const gy = terrainHeight(x, z)
+      flagItems.push({ m: mat4(x, gy + 1.3, z, 0, 1, 2.6, 1) })
+      tipItems.push({ m: mat4(x, gy + 2.75, z) })
+    }
+    for (let i = 0; i < 30; i++) {
+      const x = -305 + rnd() * 200
+      const z = -312 - rnd() * 165
+      const gy = terrainHeight(x, z)
+      const h = 4 + rnd() * 3
+      trunkItems.push({ m: mat4(x, gy + h / 2, z, 0, 1, h / 6, 1) })
+      crownItems.push({ m: mat4(x, gy + h + 1.4, z, rnd() * 3, 2.4, 2, 2.4), c: new THREE.Color(rnd() < 0.5 ? '#3c5e33' : '#4e7a3a') })
+    }
+    const windowItems: Inst[] = [
+      // hotel tower, lit faces toward the harbour and back
+      { m: mat4(-80, terrainHeight(-80, -352) + 26, -338.6, 0, 24, 40, 1) },
+      { m: mat4(-80, terrainHeight(-80, -352) + 26, -365.4, Math.PI, 24, 40, 1) },
+    ]
+    return {
+      vines: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 1 }), vineItems),
+      bunkers: makeInstanced(new THREE.CylinderGeometry(1, 1, 1, 8), new THREE.MeshStandardMaterial({ color: '#d8c9a0', roughness: 1 }), bunkerItems),
+      flags: makeInstanced(new THREE.CylinderGeometry(0.05, 0.07, 1, 5), new THREE.MeshStandardMaterial({ color: '#e8e6df' }), flagItems),
+      flagTips: makeInstanced(new THREE.ConeGeometry(0.5, 0.5, 4), new THREE.MeshStandardMaterial({ color: '#ff7a1a' }), tipItems),
+      trunks: makeInstanced(new THREE.CylinderGeometry(0.16, 0.24, 6, 5), new THREE.MeshStandardMaterial({ color: '#7a6248' }), trunkItems),
+      crowns: makeInstanced(new THREE.IcosahedronGeometry(1.5, 0), new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), crownItems),
+      windows: makeInstanced(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({ map: windowsTexture(), transparent: true, opacity: gusty ? 0.9 : 0.35, depthWrite: false }),
+        windowItems,
+      ),
+    }
+  }, [gusty])
+  const hy = terrainHeight(-80, -352)
+  const cy = terrainHeight(-80, -415)
+  return (
+    <group>
+      <primitive object={vines} />
+      <primitive object={bunkers} />
+      <primitive object={flags} />
+      <primitive object={flagTips} />
+      <primitive object={trunks} />
+      <primitive object={crowns} />
+      <primitive object={windows} />
+      {/* the hotel tower on its podium */}
+      <group position={[-80, hy, -352]}>
+        <mesh position={[0, 2, 0]} receiveShadow>
+          <boxGeometry args={[58, 4, 44]} />
+          <meshStandardMaterial color="#8d8578" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 26, 0]} castShadow>
+          <boxGeometry args={[26, 48, 26]} />
+          <meshStandardMaterial color="#7f97ab" metalness={0.5} roughness={0.35} />
+        </mesh>
+        <mesh position={[0, 50.8, 0]}>
+          <boxGeometry args={[27, 1.6, 27]} />
+          <meshStandardMaterial color="#5d6a72" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 52.4, 0]}>
+          <boxGeometry args={[5, 2, 3]} />
+          <meshStandardMaterial color="#3d444c" roughness={0.8} />
+        </mesh>
+        {/* porte cochère toward the water */}
+        <mesh position={[0, 6.5, 26]}>
+          <boxGeometry args={[18, 0.8, 9]} />
+          <meshStandardMaterial color="#3d444c" roughness={0.8} />
+        </mesh>
+        {[-7, 7].map((ox) => (
+          <mesh key={ox} position={[ox, 4.6, 29]}>
+            <cylinderGeometry args={[0.25, 0.3, 4.5, 6]} />
+            <meshStandardMaterial color="#d8d5cc" />
+          </mesh>
+        ))}
+      </group>
+      {/* convention centre: long low hall with a vaulted roof */}
+      <group position={[-80, cy, -415]}>
+        <mesh position={[0, 6, 0]} castShadow>
+          <boxGeometry args={[86, 12, 52]} />
+          <meshStandardMaterial color="#b9b4a6" roughness={0.85} />
+        </mesh>
+        <mesh position={[0, 12, 0]} rotation-z={Math.PI / 2}>
+          <cylinderGeometry args={[26, 26, 86, 14, 1, false, 0, Math.PI]} />
+          <meshStandardMaterial color="#d8d5cc" roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 4, 28.5]}>
+          <boxGeometry args={[40, 8, 5]} />
+          <meshStandardMaterial color="#7f97ab" metalness={0.4} roughness={0.4} />
+        </mesh>
+      </group>
     </group>
   )
 }
@@ -1084,15 +1208,8 @@ function OuterRises() {
       { m: mat4(140, 14, 440, 0.5, 220, 54, 120), c: new THREE.Color('#565a42') },
       { m: mat4(340, 14, 420, 0.9, 170, 40, 105), c: new THREE.Color('#5e6248') },
       { m: mat4(-240, 6, 405, 0.3, 150, 34, 100), c: new THREE.Color('#585c44') },
-      { m: mat4(240, 8, -400, 0.2, 200, 38, 100), c: new THREE.Color('#5c6046') },
-      { m: mat4(460, 8, -350, -0.3, 170, 32, 95), c: new THREE.Color('#606449') },
     ]
-    // green ridges across the far north so the skyline is land, not sea
-    moundItems.push(
-      { m: mat4(-80, 14, -520, 0.4, 260, 60, 140), c: new THREE.Color('#59604a') },
-      { m: mat4(220, 14, -560, 0.1, 220, 46, 120), c: new THREE.Color('#5d6448') },
-      { m: mat4(-340, 12, -500, 0.7, 200, 40, 110), c: new THREE.Color('#565c44') },
-    )
+    // (the north skyline is the winery estate now — no mounds behind the port)
     const suburbItems: Inst[] = []
     for (let i = 0; i < 40; i++) {
       const x = -160 + rnd() * 460
@@ -1456,6 +1573,7 @@ export function Harbour({ weather }: { weather: WeatherDef }) {
       <City gusty={gusty} />
       <Foreshore />
       <NorthSuburb />
+      <NorthEstate gusty={gusty} />
       <OuterRises />
       <FarWestIndustry />
       <Dynamics weather={weather} />
