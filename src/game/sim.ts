@@ -90,6 +90,15 @@ export class Sim {
   race: RaceState | null = null
   enemies: Enemy[] = []
 
+  // free-flight demo card progress
+  freeDone = { takeoff: false, alt40: false, boost: false, ability: false, land: false }
+  private freeComplete = false
+  netsFired = 0
+  bestSweepTags = 0
+  // intercept objectives for the non-net airframes
+  identified = new Set<string>() // kestrel: contacts painted by the sweep
+  shadowed = new Set<string>() // clydesdale: contacts closed to visual range
+
   crashUntil = -99
   crashFlashUntil = -99
   crashes = 0
@@ -195,6 +204,7 @@ export class Sim {
     // modes
     if (this.race) this.stepRace(dt)
     if (this.cfg.mode === 'intercept') this.stepIntercept(dt)
+    if (this.cfg.mode === 'free') this.stepFreeTasks()
 
     // battery flat ends the run with a report
     if (s.battery <= 0 && this.result === null && this.endAt < 0) {
@@ -237,6 +247,7 @@ export class Sim {
           n++
         }
       }
+      this.bestSweepTags = Math.max(this.bestSweepTags, n)
       this.say(n > 0 ? `SENSOR SWEEP — ${n} CONTACT${n === 1 ? '' : 'S'} TAGGED` : 'SENSOR SWEEP — NO CONTACTS')
     } else if (this.def.id === 'clydesdale') {
       if (!s.hasPayload) { this.say('PAYLOAD ALREADY RELEASED'); return }
@@ -249,6 +260,7 @@ export class Sim {
       // net launcher
       if (this.netAmmo <= 0) { this.say('NETS RELOADING'); return }
       this.netAmmo--
+      this.netsFired++
       if (this.netAmmo < 3 && this.netReloadAt < this.t) this.netReloadAt = this.t + 6
       this.cooldownUntil = this.t + 0.9
       const fwd = this.forward()
@@ -378,10 +390,124 @@ export class Sim {
   private stepIntercept(dt: number) {
     const wind = this.env.windAt(this.state.pos, this.t)
     for (const e of this.enemies) stepEnemy(e, this.state.pos, wind, this.t, dt)
+    // each airframe has its own way to win the intercept: the Peregrine nets,
+    // the Kestrel identifies with the sweep, the Clydesdale shadows in close
+    if (this.def.id === 'kestrel') {
+      for (const e of this.enemies) {
+        // a distant paint isn't an identification — hold the tag inside 180 m
+        const d = Math.hypot(e.pos.x - this.state.pos.x, e.pos.y - this.state.pos.y, e.pos.z - this.state.pos.z)
+        if (!this.identified.has(e.id) && d < 180 && (this.tagged.get(e.id) ?? -1) >= this.t) {
+          this.identified.add(e.id)
+          this.say(`${e.label.split(' ·')[0]} IDENTIFIED — DATA LINKED`, 2.5)
+        }
+      }
+      if (this.identified.size >= 2 && this.endAt < 0 && this.result === null) {
+        this.endReason = 'ALL CONTACTS IDENTIFIED'
+        this.endAt = this.t + 3
+      }
+    }
+    if (this.def.id === 'clydesdale') {
+      for (const e of this.enemies) {
+        // 90 m: close enough for visual, just outside the erratic one's 80 m
+        // evade trigger — flying calmly matters, it cannot be outrun
+        const d = Math.hypot(e.pos.x - this.state.pos.x, e.pos.y - this.state.pos.y, e.pos.z - this.state.pos.z)
+        if (!this.shadowed.has(e.id) && d < 90) {
+          this.shadowed.add(e.id)
+          this.say(`${e.label.split(' ·')[0]} SHADOWED — VISUAL CONFIRMED`, 2.5)
+        }
+      }
+      if (this.shadowed.size >= 2 && this.endAt < 0 && this.result === null) {
+        this.endReason = 'BOTH CONTACTS SHADOWED'
+        this.endAt = this.t + 3
+      }
+    }
     if (this.enemies.every((e) => e.captured) && this.endAt < 0 && this.result === null) {
       this.endReason = 'ALL CONTACTS CAPTURED'
       this.endAt = this.t + 3
     }
+  }
+
+  /** free flight is a guided demo card: five checks that show the airframe off */
+  private stepFreeTasks() {
+    const s = this.state
+    const f = this.freeDone
+    const agl = s.pos.y - this.env.groundAt(s.pos.x, s.pos.z)
+    if (!f.takeoff && !s.landed && agl > 2) {
+      f.takeoff = true
+      this.say('CHECK — AIRBORNE', 1.8)
+    }
+    if (f.takeoff && !f.alt40 && agl >= 40) {
+      f.alt40 = true
+      this.say('CHECK — 40 M REACHED', 1.8)
+    }
+    if (!f.boost && this.boostTime >= 3) {
+      f.boost = true
+      this.say('CHECK — BOOST RUN COMPLETE', 1.8)
+    }
+    if (!f.ability) {
+      if (this.def.id === 'kestrel' && this.bestSweepTags >= 3) f.ability = true
+      if (this.def.id === 'clydesdale' && this.crateReleased) f.ability = true
+      if (this.def.id === 'peregrine' && this.netsFired >= 1) f.ability = true
+      if (f.ability) this.say('CHECK — ABILITY DEMONSTRATED', 1.8)
+    }
+    if (f.takeoff && !f.land && s.landed && Math.hypot(s.pos.x - SPAWN.x, s.pos.z - SPAWN.z) < 14) {
+      f.land = true
+      this.say('CHECK — RECOVERED ON THE PAD', 2)
+    }
+    if (!this.freeComplete && f.takeoff && f.alt40 && f.boost && f.ability && f.land) {
+      this.freeComplete = true
+      this.say('DEMO CARD COMPLETE — ESC FOR THE CAPABILITY REPORT', 5)
+    }
+  }
+
+  /** the HUD's live objective checklist, one entry per step of the mode */
+  objectiveSteps(): Array<{ label: string; state: 'done' | 'now' | 'todo' }> {
+    if (this.cfg.mode === 'free') {
+      const f = this.freeDone
+      const ability =
+        this.def.id === 'kestrel' ? 'TAG 3+ CONTACTS (F)'
+        : this.def.id === 'clydesdale' ? 'RELEASE THE CARGO (F)'
+        : 'FIRE A NET (F)'
+      const list: Array<[string, boolean]> = [
+        ['TAKE OFF', f.takeoff],
+        ['CLIMB TO 40 M', f.alt40],
+        ['BOOST FOR 3 S (SHIFT)', f.boost],
+        [ability, f.ability],
+        ['LAND BACK ON THE PAD', f.land],
+      ]
+      let nowSeen = false
+      return list.map(([label, done]) => {
+        const state = done ? 'done' : nowSeen ? 'todo' : 'now'
+        if (!done) nowSeen = true
+        return { label, state }
+      })
+    }
+    if (this.cfg.mode === 'race' && this.race) {
+      const r = this.race
+      const steps: Array<{ label: string; state: 'done' | 'now' | 'todo' }> = [
+        { label: 'CROSS THE START RING', state: r.started ? 'done' : 'now' },
+      ]
+      for (let i = 0; i < LAPS; i++) {
+        const done = r.lapTimes.length > i
+        steps.push({
+          label: done ? `LAP ${i + 1} — ${fmtTime(r.lapTimes[i])}` : `LAP ${i + 1} OF ${LAPS}`,
+          state: done ? 'done' : r.started && r.lap === i ? 'now' : 'todo',
+        })
+      }
+      return steps
+    }
+    if (this.cfg.mode === 'intercept') {
+      const verb = this.def.id === 'kestrel' ? 'IDENTIFY' : this.def.id === 'clydesdale' ? 'SHADOW' : 'CAPTURE'
+      const doneSet = this.def.id === 'kestrel' ? this.identified : this.def.id === 'clydesdale' ? this.shadowed : null
+      let nowSeen = false
+      return this.enemies.map((e) => {
+        const done = doneSet ? doneSet.has(e.id) : e.captured
+        const state = done ? 'done' : nowSeen ? 'todo' : 'now'
+        if (!done) nowSeen = true
+        return { label: `${verb} ${e.label.split(' ·')[0]}`, state: state as 'done' | 'now' | 'todo' }
+      })
+    }
+    return []
   }
 
   requestAbility() {
@@ -400,9 +526,14 @@ export class Sim {
       objectives.push(r.finished ? `3 laps completed${r.penalty ? ` (+${r.penalty}s in penalties)` : ''}` : `${r.lap} of 3 laps completed`)
     }
     if (this.cfg.mode === 'intercept') {
-      objectives.push(`${captures} of 2 hostile contacts captured`)
+      if (this.def.id === 'kestrel') objectives.push(`${this.identified.size} of 2 contacts identified by sensor sweep`)
+      else if (this.def.id === 'clydesdale') objectives.push(`${this.shadowed.size} of 2 contacts shadowed at visual range`)
+      else objectives.push(`${captures} of 2 hostile contacts captured`)
     }
     if (this.cfg.mode === 'free') {
+      const f = this.freeDone
+      const done = [f.takeoff, f.alt40, f.boost, f.ability, f.land].filter(Boolean).length
+      objectives.push(`demo card: ${done} of 5 checks completed`)
       objectives.push(`${(this.distance / 1000).toFixed(1)} km flown across the harbour`)
       if (this.tagged.size > 0) objectives.push(`${this.tagged.size} contacts tagged by sensor sweep`)
       if (this.crateReleased) objectives.push('cargo delivered')
@@ -433,10 +564,14 @@ export class Sim {
     const gusty = this.cfg.weather === 'gusty'
     switch (this.cfg.drone) {
       case 'kestrel':
+        if (this.identified.size >= 2)
+          return `Both contacts painted and catalogued in ${fmtTime(this.t)} without closing inside 80 m — that is what an ISR airframe is for.`
         return gusty
           ? `The Kestrel stayed on task ${fmtTime(this.t)} in an 11 m/s southerly — light airframes pay for wind, and it still out-lasts the fleet.`
           : `${fmtTime(this.t)} on task for ${used}% battery — at this burn rate the Kestrel holds station longer than anything else in the fleet.`
       case 'clydesdale':
+        if (this.shadowed.size >= 2)
+          return `Both contacts shadowed to visual range and it never once got pushed off line — presence is its own deterrent.`
         return gusty
           ? `Rock steady in the gusts that shove the light airframes around — the Clydesdale flew ${this.distanceKm()} km like the wind wasn't there.`
           : this.crateReleased

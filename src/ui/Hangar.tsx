@@ -177,6 +177,11 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
     ['race', 'Race'],
     ['intercept', 'Intercept'],
   ]
+  const MODE_BLURB: Record<Mode, string> = {
+    free: 'Open harbour — a five-check demo card puts the airframe through its paces.',
+    race: '3 laps · 8 rings around the working port. Beat the par times for a medal.',
+    intercept: 'Two hostile drones over the basin. Net them, paint them, or shadow them — each airframe has its own play.',
+  }
   const weathers: Array<[WeatherId, string]> = [
     ['clear', 'Clear'],
     ['gusty', 'Gusty Southerly'],
@@ -227,6 +232,7 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
               ))}
             </div>
           </div>
+          <div className="modeblurb">{MODE_BLURB[cfg.mode]}</div>
           <button className="start" onClick={onLaunch}>
             Launch
           </button>
