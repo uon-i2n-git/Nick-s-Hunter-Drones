@@ -179,6 +179,16 @@ h2 { font-size: 25px; font-weight: 600; letter-spacing: -0.01em; margin-top: 7px
 .hud-step.now { color: var(--accent); }
 .hud-step.done { color: #3FD68C; }
 .hud-step.done .mark { color: #3FD68C; }
+.intel { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+.intel-line { color: #3FD68C; margin-top: 3px; }
+.hud-btn {
+  pointer-events: auto; cursor: pointer; margin-top: 4px;
+  background: rgba(16, 21, 27, 0.75); border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.2em;
+  color: var(--muted); padding: 5px 10px; text-transform: uppercase;
+}
+.hud-btn:hover { color: var(--text); }
+.hud-btn.on { color: var(--accent); border-color: rgba(255, 122, 26, 0.4); }
 
 .hud-top-centre { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .hud-race { background: rgba(16, 21, 27, 0.75); border: 1px solid var(--border); padding: 8px 22px; }

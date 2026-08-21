@@ -156,7 +156,7 @@ function Terrain() {
       const h = terrainHeight(x, z)
       pos.setY(i, h === 0 ? -1.8 : h - 0.05)
       const nearBeach = x < -215 && x > -330 && z < -125 && z > -190
-      const northEstate = z < -305 && z > -490
+      const northEstate = z < -305 && z > -530
       if (h === 0) c.copy(ASPHALT)
       else if (nearBeach) c.set('#c4ad7e').offsetHSL(0, 0, (rnd() - 0.5) * 0.04)
       else if (h === 3) c.copy(rnd() < 0.6 ? ASPHALT : DIRT).offsetHSL(0, 0, (rnd() - 0.5) * 0.05)
@@ -948,7 +948,7 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
     // vine rows run east-west, along the terrain contours
     for (const block of [
       { x0: -12, x1: 152, z0: -318, z1: -388 },
-      { x0: -12, x1: 152, z0: -398, z1: -476 },
+      { x0: -12, x1: 152, z0: -398, z1: -496 },
     ]) {
       for (let z = block.z0; z > block.z1; z -= 5) {
         const gy = terrainHeight((block.x0 + block.x1) / 2, z)
@@ -965,12 +965,12 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
     const tipItems: Inst[] = []
     for (let i = 0; i < 12; i++) {
       const x = -290 + rnd() * 130
-      const z = -320 - rnd() * 150
+      const z = -330 - rnd() * 170
       bunkerItems.push({ m: mat4(x, terrainHeight(x, z) + 0.12, z, rnd(), 5 + rnd() * 6, 0.3, 4 + rnd() * 4) })
     }
     for (let i = 0; i < 6; i++) {
       const x = -285 + rnd() * 120
-      const z = -330 - rnd() * 130
+      const z = -340 - rnd() * 150
       const gy = terrainHeight(x, z)
       flagItems.push({ m: mat4(x, gy + 1.3, z, 0, 1, 2.6, 1) })
       tipItems.push({ m: mat4(x, gy + 2.75, z) })
@@ -986,10 +986,10 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
     }
     for (let c = 0; c < 11; c++) {
       const cx = -280 + rnd() * 240
-      const cz = -318 - rnd() * 150
+      const cz = -330 - rnd() * 175
       for (let t = 0; t < 5; t++) tree(cx + (rnd() - 0.5) * 22, cz + (rnd() - 0.5) * 18)
     }
-    for (let i = 0; i < 18; i++) tree(-300 + rnd() * 260, -312 - rnd() * 160)
+    for (let i = 0; i < 18; i++) tree(-300 + rnd() * 260, -318 - rnd() * 185)
     // villa rows curving around the golf side, like resort lodges
     const villaWallItems: Inst[] = []
     const villaRoofItems: Inst[] = []
@@ -1002,21 +1002,21 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
     }
     for (let i = 0; i < 13; i++) {
       const a = 0.5 + i * 0.155
-      villa(-185 + Math.cos(a) * 54, -378 + Math.sin(a) * 46, -a)
+      villa(-185 + Math.cos(a) * 54, -418 + Math.sin(a) * 46, -a)
     }
     for (let i = 0; i < 11; i++) {
       const a = -0.3 + i * 0.19
-      villa(-160 + Math.cos(a) * 40, -436 + Math.sin(a) * 34, -a + 0.3)
+      villa(-160 + Math.cos(a) * 40, -476 + Math.sin(a) * 34, -a + 0.3)
     }
     for (let gx = 0; gx < 4; gx++) {
-      for (let gz = 0; gz < 2; gz++) villa(-262 + gx * 11, -408 - gz * 12, (rnd() - 0.5) * 0.2)
+      for (let gz = 0; gz < 2; gz++) villa(-262 + gx * 11, -448 - gz * 12, (rnd() - 0.5) * 0.2)
     }
     // campus wings: light walls, oversized dark roofs with solar arrays
     const wings = [
-      { x: -58, z: -346, w: 54, h: 8.5, d: 18 },
-      { x: -118, z: -350, w: 40, h: 8.5, d: 18 },
-      { x: -74, z: -394, w: 60, h: 11, d: 24 }, // main block
-      { x: -128, z: -398, w: 42, h: 9, d: 30 }, // conference hall
+      { x: -58, z: -386, w: 54, h: 8.5, d: 18 },
+      { x: -118, z: -390, w: 40, h: 8.5, d: 18 },
+      { x: -74, z: -434, w: 60, h: 11, d: 24 }, // main block
+      { x: -128, z: -438, w: 42, h: 9, d: 30 }, // conference hall
     ]
     const wingItems: Inst[] = []
     const roofItems: Inst[] = []
@@ -1031,23 +1031,23 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
         solarItems.push({ m: mat4(wg.x - wg.w / 2 + 8 + s * 13, gy + wg.h + 1, wg.z, 0, 10, 0.25, wg.d * 0.65) })
       }
       // lit faces toward the pool court
-      const dir = wg.z > -370 ? -1 : 1
+      const dir = wg.z > -410 ? -1 : 1
       windowItems.push({ m: mat4(wg.x, gy + wg.h / 2, wg.z + dir * (wg.d / 2 + 0.15), dir > 0 ? 0 : Math.PI, wg.w * 0.9, wg.h * 0.8, 1) })
     }
     // pool court furniture: loungers + car-park lane paint
     const furnItems: Inst[] = []
     for (let i = 0; i < 12; i++) {
-      furnItems.push({ m: mat4(-96 + i * 2.6, terrainHeight(-84, -372) + 0.5, -374 + (i % 2) * 1.2, 0, 1.8, 0.35, 0.8) })
+      furnItems.push({ m: mat4(-96 + i * 2.6, terrainHeight(-84, -412) + 0.5, -414 + (i % 2) * 1.2, 0, 1.8, 0.35, 0.8) })
     }
     for (let i = 0; i < 7; i++) {
-      furnItems.push({ m: mat4(-38 + 3.4 * i, terrainHeight(-28, -390) + 0.32, -390, 0, 0.35, 0.05, 5.5) })
+      furnItems.push({ m: mat4(-38 + 3.4 * i, terrainHeight(-28, -430) + 0.32, -430, 0, 0.35, 0.05, 5.5) })
     }
     // a few cars at the resort car park
     const carItems: Inst[] = []
     const carCols = ['#c9cdd2', '#8a9096', '#3c4046', '#7a2f2a', '#28455c']
     for (let i = 0; i < 6; i++) {
       carItems.push({
-        m: mat4(-36.3 + 3.4 * i, terrainHeight(-28, -386) + 0.75, -385.4, Math.PI / 2, 4.1, 1.25, 1.8),
+        m: mat4(-36.3 + 3.4 * i, terrainHeight(-28, -426) + 0.75, -425.4, Math.PI / 2, 4.1, 1.25, 1.8),
         c: new THREE.Color(carCols[Math.floor(rnd() * carCols.length)]),
       })
     }
@@ -1073,16 +1073,16 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
       ),
     }
   }, [gusty])
-  const py = terrainHeight(-84, -368) // pool court
-  const ky = terrainHeight(-28, -388) // car park
-  const wy = terrainHeight(-258, -352) // pond
+  const py = terrainHeight(-84, -408) // pool court
+  const ky = terrainHeight(-28, -428) // car park
+  const wy = terrainHeight(-258, -392) // pond
   return (
     <group>
       {Object.values(inst).map((m, i) => (
         <primitive key={i} object={m} />
       ))}
       {/* pool court between the wings */}
-      <group position={[-84, py, -368]}>
+      <group position={[-84, py, -408]}>
         <mesh position={[0, 0.18, 0]} receiveShadow>
           <boxGeometry args={[36, 0.36, 22]} />
           <meshStandardMaterial color="#d8d3c8" roughness={0.9} />
@@ -1106,12 +1106,12 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
         </mesh>
       </group>
       {/* car park slab */}
-      <mesh position={[-28, ky + 0.08, -388]} receiveShadow>
+      <mesh position={[-28, ky + 0.08, -428]} receiveShadow>
         <boxGeometry args={[26, 0.16, 28]} />
         <meshStandardMaterial color="#3a3f43" roughness={0.95} />
       </mesh>
       {/* pond on the golf side */}
-      <mesh position={[-258, wy - 0.1, -352]}>
+      <mesh position={[-258, wy - 0.1, -392]}>
         <cylinderGeometry args={[17, 17, 0.3, 14]} />
         <meshStandardMaterial color="#2d5f78" roughness={0.3} metalness={0.1} />
       </mesh>
