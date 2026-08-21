@@ -50,11 +50,13 @@ export interface HudData {
   contacts: ContactInfo[] | null
   camLabel: string
   steps: Array<{ label: string; state: 'done' | 'now' | 'todo' }>
+  /** kestrel: active sensor tags with live ranges */
+  intel: string[] | null
 }
 
 const R2D = 180 / Math.PI
 
-export function Hud({ d }: { d: HudData }) {
+export function Hud({ d, controlsOn, onToggleControls }: { d: HudData; controlsOn: boolean; onToggleControls: () => void }) {
   return (
     <div className="hud">
       {/* top left: objective + live checklist */}
@@ -176,8 +178,20 @@ export function Hud({ d }: { d: HudData }) {
             F · {d.ability.label} — {d.ability.detail}
           </div>
         </div>
+        {d.intel && (
+          <div className="intel">
+            <div className="hud-label">SENSOR TAGS — DATA LINK</div>
+            {d.intel.map((line) => (
+              <div key={line} className="hud-label intel-line">
+                {line}
+              </div>
+            ))}
+          </div>
+        )}
         <div className="hud-label muted">TAB · {d.camLabel}</div>
-        <div className="hud-label muted">H · CONTROLS</div>
+        <button className={`hud-btn ${controlsOn ? 'on' : ''}`} onClick={onToggleControls}>
+          H · CONTROLS {controlsOn ? 'ON' : 'OFF'}
+        </button>
       </div>
     </div>
   )

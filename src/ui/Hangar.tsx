@@ -4,7 +4,7 @@
 import { useEffect, useMemo } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { DRONES, DRONE_ORDER, type DroneDef, type DroneId } from '../game/drones.ts'
-import type { Mode, SimConfig } from '../game/sim.ts'
+import { SCENARIOS, type Mode, type SimConfig } from '../game/sim.ts'
 import type { WeatherId } from '../game/weather.ts'
 import { BUILDERS } from '../render/meshes.ts'
 
@@ -177,11 +177,8 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
     ['race', 'Race'],
     ['intercept', 'Intercept'],
   ]
-  const MODE_BLURB: Record<Mode, string> = {
-    free: 'Open harbour — a five-check demo card puts the airframe through its paces.',
-    race: '3 laps · 8 rings around the working port. Beat the par times for a medal.',
-    intercept: 'Two hostile drones over the basin. Net them, paint them, or shadow them — each airframe has its own play.',
-  }
+  const scenarios = SCENARIOS[cfg.mode]
+  const activeScenario = scenarios.find((sc) => sc.id === cfg.scenario) ?? scenarios[0]
   const weathers: Array<[WeatherId, string]> = [
     ['clear', 'Clear'],
     ['gusty', 'Gusty Southerly'],
@@ -216,8 +213,22 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
             <label>Mode</label>
             <div className="seg">
               {modes.map(([m, label]) => (
-                <button key={m} className={cfg.mode === m ? 'on' : ''} onClick={() => setCfg({ ...cfg, mode: m })}>
+                <button
+                  key={m}
+                  className={cfg.mode === m ? 'on' : ''}
+                  onClick={() => setCfg({ ...cfg, mode: m, scenario: SCENARIOS[m][0].id })}
+                >
                   {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="group">
+            <label>Scenario</label>
+            <div className="seg">
+              {scenarios.map((sc) => (
+                <button key={sc.id} className={activeScenario.id === sc.id ? 'on' : ''} onClick={() => setCfg({ ...cfg, scenario: sc.id })}>
+                  {sc.label}
                 </button>
               ))}
             </div>
@@ -232,7 +243,7 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
               ))}
             </div>
           </div>
-          <div className="modeblurb">{MODE_BLURB[cfg.mode]}</div>
+          <div className="modeblurb">{activeScenario.blurb}</div>
           <button className="start" onClick={onLaunch}>
             Launch
           </button>

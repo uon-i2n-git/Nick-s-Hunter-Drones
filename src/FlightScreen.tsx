@@ -35,6 +35,12 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
     return () => cardTimers.current.forEach(clearTimeout)
   }, [])
 
+  // clicked/keyed on: stays until clicked/keyed off (kills the launch timer)
+  const toggleCard = useCallback(() => {
+    cardTimers.current.forEach(clearTimeout)
+    setCard((prev) => (prev === 'hidden' ? 'show' : 'hidden'))
+  }, [])
+
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (GAME_CODES.has(e.code)) e.preventDefault()
@@ -44,10 +50,7 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
       if (e.code === 'Tab') camModeRef.current = (camModeRef.current + 1) % 3
       if (e.code === 'KeyR') onRestart()
       if (e.code === 'Escape') onExit()
-      if (e.code === 'KeyH') {
-        cardTimers.current.forEach(clearTimeout) // manual toggle overrides the launch timer
-        setCard((prev) => (prev === 'hidden' ? 'show' : 'hidden'))
-      }
+      if (e.code === 'KeyH') toggleCard()
     }
     const up = (e: KeyboardEvent) => {
       keysRef.current[e.code] = false
@@ -63,7 +66,7 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', blur)
     }
-  }, [sim, onExit, onRestart])
+  }, [sim, onExit, onRestart, toggleCard])
 
   const handleHud = useCallback(
     (h: HudData) => {
@@ -86,7 +89,7 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
       >
         <GameScene sim={sim} keysRef={keysRef} camModeRef={camModeRef} onHud={handleHud} />
       </Canvas>
-      {hud && <Hud d={hud} />}
+      {hud && <Hud d={hud} controlsOn={card !== 'hidden'} onToggleControls={toggleCard} />}
       {card !== 'hidden' && <ControlsCard fading={card === 'fading'} />}
       {hud?.flash && <div className="crash-flash" />}
     </div>

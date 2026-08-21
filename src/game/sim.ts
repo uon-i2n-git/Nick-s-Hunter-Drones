@@ -8,8 +8,8 @@ import {
 } from './physics.ts'
 import { WEATHERS, windAt, type WeatherId, type WeatherDef } from './weather.ts'
 import { FENCE_RADIUS, SPAWN, SPAWN_YAW, STATIC_TAGGABLES, collide, fenceExcess, groundAt } from './world.ts'
-import { GATES, GATE_RADIUS, LAPS, MISSED_GATE_PENALTY, medalFor, medalsFor } from './course.ts'
-import { spawnEnemies, stepEnemy, type Enemy } from './enemies.ts'
+import { COURSES, DEFAULT_COURSE, GATE_RADIUS, MISSED_GATE_PENALTY, medalFor, medalsFor, type CourseDef, type Gate } from './course.ts'
+import { spawnEnemies, stepEnemy, type Enemy, type EnemySet } from './enemies.ts'
 
 export type Mode = 'free' | 'race' | 'intercept'
 
@@ -17,7 +17,33 @@ export interface SimConfig {
   drone: DroneId
   mode: Mode
   weather: WeatherId
+  /** scenario within the mode; defaults to the first for that mode */
+  scenario?: string
 }
+
+/** the selectable scenarios per mode, first is the default */
+export const SCENARIOS: Record<Mode, Array<{ id: string; label: string; blurb: string }>> = {
+  free: [
+    { id: 'demo', label: 'Demo Card', blurb: 'Open harbour — a five-check demo card puts the airframe through its paces.' },
+    { id: 'field', label: 'Field Tasks', blurb: 'Four sites across the harbour. Survey each one the way this airframe works: sweep it, drop to it, or beat the clock to it.' },
+  ],
+  race: [
+    { id: 'circuit', label: 'Port Circuit', blurb: '3 laps · 8 rings around the working port. Beat the par times for a medal.' },
+    { id: 'sprint', label: 'Channel Sprint', blurb: '2 laps out the channel and back — long straights, two hard U-turns at the mouth and the basin.' },
+  ],
+  intercept: [
+    { id: 'patrol', label: 'Harbour Patrol', blurb: 'Two hostile drones over the basin. Net them, paint them, or shadow them — each airframe has its own play.' },
+    { id: 'swarm', label: 'Swarm Response', blurb: 'Four contacts at once — two orbiters, two erratic runners. Work them one at a time or lose the picture.' },
+  ],
+}
+
+// field-task survey sites, spread across the flyable harbour
+export const FIELD_SITES: Array<{ id: string; label: string; pos: V3 }> = [
+  { id: 'f1', label: 'COAL TERMINAL', pos: { x: -150, y: 26, z: -170 } },
+  { id: 'f2', label: 'CARRIER DECK', pos: { x: -45, y: 18, z: -116 } },
+  { id: 'f3', label: 'MARINA ROW', pos: { x: -100, y: 15, z: 123 } },
+  { id: 'f4', label: 'MID-CHANNEL MARK', pos: { x: 400, y: 24, z: 20 } },
+]
 
 export interface Net {
   pos: V3
@@ -30,6 +56,8 @@ export interface Crate {
   pos: V3
   vel: V3
   landed: boolean
+  /** released low: lowered gently on the winch line */
+  winched: boolean
 }
 
 export interface Report {
@@ -98,6 +126,12 @@ export class Sim {
   // intercept objectives for the non-net airframes
   identified = new Set<string>() // kestrel: contacts painted by the sweep
   shadowed = new Set<string>() // clydesdale: contacts closed to visual range
+  // scenario state
+  scenarioId: string
+  course: CourseDef
+  siteDone = new Set<string>() // field tasks
+  fieldStartAt = -1 // peregrine's clock starts at the first site
+  private fieldComplete = false
 
   crashUntil = -99
   crashFlashUntil = -99
@@ -116,6 +150,8 @@ export class Sim {
 
   constructor(cfg: SimConfig) {
     this.cfg = cfg
+    this.scenarioId = cfg.scenario ?? SCENARIOS[cfg.mode][0].id
+    this.course = COURSES[this.scenarioId] ?? COURSES[DEFAULT_COURSE]
     this.def = DRONES[cfg.drone]
     this.weather = WEATHERS[cfg.weather]
     this.mixer = buildMixer(this.def)
@@ -126,8 +162,10 @@ export class Sim {
       fenceRadius: FENCE_RADIUS,
       fenceExcess,
       // race runs on reduced drain (per-drone) so a clean 3-lap run fits the
-      // airframe's battery — see raceDrain in drones.ts
-      drainScale: cfg.mode === 'race' ? this.def.raceDrain : 1,
+      // airframe's battery — see raceDrain in drones.ts. Intercept gets the
+      // same treatment: the compressed batteries cannot cover a four-contact
+      // swarm at combat throttle, so mission drain is scaled to fit.
+      drainScale: cfg.mode === 'race' ? this.def.raceDrain : cfg.mode === 'intercept' ? 0.65 : 1,
     }
     this.prev = { pos: { ...SPAWN }, quat: { ...this.state.quat } }
     this.curr = { pos: { ...SPAWN }, quat: { ...this.state.quat } }
@@ -135,10 +173,14 @@ export class Sim {
       this.race = {
         started: false, time: 0, nextGate: 0, lap: 0, lapTimes: [],
         lapStart: 0, penalty: 0, finished: false,
-        prevSide: GATES.map((g) => this.gateSide(g, SPAWN)),
+        prevSide: this.course.gates.map((g) => this.gateSide(g, SPAWN)),
       }
     }
-    if (cfg.mode === 'intercept') this.enemies = spawnEnemies()
+    if (cfg.mode === 'intercept') this.enemies = spawnEnemies(this.scenarioId as EnemySet)
+  }
+
+  get gates(): Gate[] {
+    return this.course.gates
   }
 
   say(text: string, seconds = 2.5) {
@@ -193,7 +235,7 @@ export class Sim {
       s.tumbling = false
       s.rotorOmega = s.rotorOmega.map(() => 0.4)
       this.prev = { pos: { ...s.pos }, quat: { ...s.quat } }
-      if (this.race && !this.race.finished) this.race.prevSide = GATES.map((g) => this.gateSide(g, s.pos))
+      if (this.race && !this.race.finished) this.race.prevSide = this.gates.map((g) => this.gateSide(g, s.pos))
     }
 
     // abilities
@@ -204,7 +246,10 @@ export class Sim {
     // modes
     if (this.race) this.stepRace(dt)
     if (this.cfg.mode === 'intercept') this.stepIntercept(dt)
-    if (this.cfg.mode === 'free') this.stepFreeTasks()
+    if (this.cfg.mode === 'free') {
+      if (this.scenarioId === 'field') this.stepFieldTasks()
+      else this.stepFreeTasks()
+    }
 
     // battery flat ends the run with a report
     if (s.battery <= 0 && this.result === null && this.endAt < 0) {
@@ -253,8 +298,10 @@ export class Sim {
       if (!s.hasPayload) { this.say('PAYLOAD ALREADY RELEASED'); return }
       s.hasPayload = false
       this.crateReleased = true
-      this.crate = { pos: { x: s.pos.x, y: s.pos.y - 0.9, z: s.pos.z }, vel: { ...s.vel }, landed: false }
-      this.say('CARGO RELEASED — ENDURANCE EXTENDED')
+      const agl = s.pos.y - this.env.groundAt(s.pos.x, s.pos.z)
+      const winched = agl < 22
+      this.crate = { pos: { x: s.pos.x, y: s.pos.y - 0.9, z: s.pos.z }, vel: { ...s.vel }, landed: false, winched }
+      this.say(winched ? 'WINCHING CARGO DOWN — HOLD POSITION' : 'CARGO RELEASED — ENDURANCE EXTENDED')
       this.cooldownUntil = this.t + 1
     } else {
       // net launcher
@@ -307,10 +354,18 @@ export class Sim {
       }
     }
     if (this.nets.length > 8) this.nets = this.nets.filter((n) => !n.dead || this.t - n.born < 3)
-    // crate falls, lands, stays
+    // crate falls, lands, stays; a winched crate descends on the cable
     const c = this.crate
     if (c && !c.landed) {
-      c.vel.y -= 9.81 * dt
+      if (c.winched) {
+        // gentle 3 m/s lower, drifting with the aircraft above
+        const s2 = this.state
+        c.vel.y = Math.max(c.vel.y - 9.81 * dt * 0.5, -3)
+        c.vel.x += (s2.vel.x - c.vel.x) * 2.5 * dt
+        c.vel.z += (s2.vel.z - c.vel.z) * 2.5 * dt
+      } else {
+        c.vel.y -= 9.81 * dt
+      }
       c.vel.x *= 1 - 0.2 * dt
       c.vel.z *= 1 - 0.2 * dt
       c.pos.x += c.vel.x * dt
@@ -320,6 +375,7 @@ export class Sim {
       if (c.pos.y <= g + 0.45) {
         c.pos.y = g + 0.45
         c.landed = true
+        if (c.winched) this.say('CARGO DOWN — LOAD CELL CONFIRMS DELIVERY', 2.5)
       }
     }
   }
@@ -331,12 +387,12 @@ export class Sim {
     const p = this.state.pos
     // refresh every gate's plane side each step (stale sides deadlock passes),
     // then act on the expected gate and the one after it (missed-gate skip)
-    const sides = GATES.map((g) => this.gateSide(g, p))
+    const sides = this.gates.map((g) => this.gateSide(g, p))
     const wasSides = r.prevSide
     r.prevSide = sides
     for (const look of [0, 1]) {
-      const gi = (r.nextGate + look) % GATES.length
-      const g = GATES[gi]
+      const gi = (r.nextGate + look) % this.gates.length
+      const g = this.gates[gi]
       const side = sides[gi]
       const was = wasSides[gi]
       const dx = p.x - g.pos.x
@@ -367,13 +423,13 @@ export class Sim {
         r.started = true
         r.time = 0
         r.lapStart = 0
-        this.say('RACE STARTED — LAP 1 OF 3', 2)
+        this.say(`RACE STARTED — LAP 1 OF ${this.course.laps}`, 2)
       } else {
         const lapTime = r.time - r.lapStart
         r.lapTimes.push(lapTime)
         r.lapStart = r.time
         r.lap++
-        if (r.lap >= LAPS) {
+        if (r.lap >= this.course.laps) {
           r.finished = true
           r.time += r.penalty
           this.endReason = 'RACE COMPLETE'
@@ -384,7 +440,7 @@ export class Sim {
         this.say(`LAP ${r.lap} — ${fmtTime(lapTime)}`, 2.5)
       }
     }
-    r.nextGate = (gi + 1) % GATES.length
+    r.nextGate = (gi + 1) % this.gates.length
   }
 
   private stepIntercept(dt: number) {
@@ -401,7 +457,7 @@ export class Sim {
           this.say(`${e.label.split(' ·')[0]} IDENTIFIED — DATA LINKED`, 2.5)
         }
       }
-      if (this.identified.size >= 2 && this.endAt < 0 && this.result === null) {
+      if (this.identified.size >= this.enemies.length && this.endAt < 0 && this.result === null) {
         this.endReason = 'ALL CONTACTS IDENTIFIED'
         this.endAt = this.t + 3
       }
@@ -416,8 +472,8 @@ export class Sim {
           this.say(`${e.label.split(' ·')[0]} SHADOWED — VISUAL CONFIRMED`, 2.5)
         }
       }
-      if (this.shadowed.size >= 2 && this.endAt < 0 && this.result === null) {
-        this.endReason = 'BOTH CONTACTS SHADOWED'
+      if (this.shadowed.size >= this.enemies.length && this.endAt < 0 && this.result === null) {
+        this.endReason = 'ALL CONTACTS SHADOWED'
         this.endAt = this.t + 3
       }
     }
@@ -460,8 +516,67 @@ export class Sim {
     }
   }
 
+  /** field tasks: four sites, surveyed the way each airframe works */
+  private stepFieldTasks() {
+    const s = this.state
+    for (const site of FIELD_SITES) {
+      if (this.siteDone.has(site.id)) continue
+      const d = Math.hypot(site.pos.x - s.pos.x, site.pos.y - s.pos.y, site.pos.z - s.pos.z)
+      let done = false
+      if (this.def.id === 'kestrel') {
+        // stand-off survey: a sweep fired with the site inside 150 m marks it
+        if (this.sweepConeUntil > this.t - 0.05 && d < 150) done = true
+      } else if (this.def.id === 'clydesdale') {
+        // close inspection: put the airframe right on the site
+        const agl = s.pos.y - this.env.groundAt(s.pos.x, s.pos.z)
+        if (d < 30 && agl < 14) done = true
+      } else {
+        // peregrine: plain visit, but the clock is the test
+        if (d < 28) done = true
+      }
+      if (done) {
+        this.siteDone.add(site.id)
+        if (this.fieldStartAt < 0) this.fieldStartAt = this.t
+        this.say(`SITE SURVEYED — ${site.label} (${this.siteDone.size}/${FIELD_SITES.length})`, 2.2)
+      }
+    }
+    if (!this.fieldComplete && this.siteDone.size === FIELD_SITES.length) {
+      this.fieldComplete = true
+      const elapsed = this.t - Math.max(0, this.fieldStartAt)
+      const beatClock = this.def.id !== 'peregrine' || elapsed <= 150
+      this.say(
+        beatClock
+          ? 'ALL SITES SURVEYED — ESC FOR THE CAPABILITY REPORT'
+          : 'ALL SITES SURVEYED — OVER THE 2:30 TARGET',
+        5,
+      )
+    }
+  }
+
   /** the HUD's live objective checklist, one entry per step of the mode */
   objectiveSteps(): Array<{ label: string; state: 'done' | 'now' | 'todo' }> {
+    if (this.cfg.mode === 'free' && this.scenarioId === 'field') {
+      const how =
+        this.def.id === 'kestrel' ? 'SWEEP (F) INSIDE 150 M'
+        : this.def.id === 'clydesdale' ? 'CLOSE TO 30 M, UNDER 14 M AGL'
+        : 'FLY THROUGH THE MARKER'
+      let nowSeen = false
+      const steps = FIELD_SITES.map((site) => {
+        const done = this.siteDone.has(site.id)
+        const state: 'done' | 'now' | 'todo' = done ? 'done' : nowSeen ? 'todo' : 'now'
+        if (!done) nowSeen = true
+        return { label: `${site.label} — ${how}`, state }
+      })
+      if (this.def.id === 'peregrine') {
+        const elapsed = this.fieldStartAt < 0 ? 0 : this.t - this.fieldStartAt
+        const allDone = this.siteDone.size === FIELD_SITES.length
+        steps.push({
+          label: `ALL FOUR INSIDE 2:30 (${fmtTime(Math.min(elapsed, 999))})`,
+          state: allDone ? (this.t - this.fieldStartAt <= 150 ? 'done' : 'todo') : elapsed > 150 ? 'todo' : 'now',
+        })
+      }
+      return steps
+    }
     if (this.cfg.mode === 'free') {
       const f = this.freeDone
       const ability =
@@ -487,10 +602,10 @@ export class Sim {
       const steps: Array<{ label: string; state: 'done' | 'now' | 'todo' }> = [
         { label: 'CROSS THE START RING', state: r.started ? 'done' : 'now' },
       ]
-      for (let i = 0; i < LAPS; i++) {
+      for (let i = 0; i < this.course.laps; i++) {
         const done = r.lapTimes.length > i
         steps.push({
-          label: done ? `LAP ${i + 1} — ${fmtTime(r.lapTimes[i])}` : `LAP ${i + 1} OF ${LAPS}`,
+          label: done ? `LAP ${i + 1} — ${fmtTime(r.lapTimes[i])}` : `LAP ${i + 1} OF ${this.course.laps}`,
           state: done ? 'done' : r.started && r.lap === i ? 'now' : 'todo',
         })
       }
@@ -510,6 +625,27 @@ export class Sim {
     return []
   }
 
+  /** the peregrine's firing solution: nearest live contact in the launch cone */
+  lockOn(): Enemy | null {
+    if (this.def.id !== 'peregrine' || this.enemies.length === 0) return null
+    const s = this.state
+    const f = this.forward()
+    let best: Enemy | null = null
+    let bestD = 48
+    for (const e of this.enemies) {
+      if (e.captured) continue
+      const dx = e.pos.x - s.pos.x
+      const dy = e.pos.y - s.pos.y
+      const dz = e.pos.z - s.pos.z
+      const d = Math.hypot(dx, dy, dz)
+      if (d > bestD) continue
+      if ((f.x * dx + f.y * dy + f.z * dz) / d < 0.86) continue
+      best = e
+      bestD = d
+    }
+    return best
+  }
+
   requestAbility() {
     this.abilityRequest = true
   }
@@ -523,14 +659,26 @@ export class Sim {
     const captures = this.enemies.filter((e) => e.captured).length
     const objectives: string[] = []
     if (this.cfg.mode === 'race' && r) {
-      objectives.push(r.finished ? `3 laps completed${r.penalty ? ` (+${r.penalty}s in penalties)` : ''}` : `${r.lap} of 3 laps completed`)
+      const L = this.course.laps
+      objectives.push(
+        r.finished
+          ? `${this.course.label}: ${L} laps completed${r.penalty ? ` (+${r.penalty}s in penalties)` : ''}`
+          : `${this.course.label}: ${r.lap} of ${L} laps completed`,
+      )
     }
     if (this.cfg.mode === 'intercept') {
-      if (this.def.id === 'kestrel') objectives.push(`${this.identified.size} of 2 contacts identified by sensor sweep`)
-      else if (this.def.id === 'clydesdale') objectives.push(`${this.shadowed.size} of 2 contacts shadowed at visual range`)
-      else objectives.push(`${captures} of 2 hostile contacts captured`)
+      const N = this.enemies.length
+      if (this.def.id === 'kestrel') objectives.push(`${this.identified.size} of ${N} contacts identified by sensor sweep`)
+      else if (this.def.id === 'clydesdale') objectives.push(`${this.shadowed.size} of ${N} contacts shadowed at visual range`)
+      else objectives.push(`${captures} of ${N} hostile contacts captured`)
     }
-    if (this.cfg.mode === 'free') {
+    if (this.cfg.mode === 'free' && this.scenarioId === 'field') {
+      objectives.push(`field tasks: ${this.siteDone.size} of ${FIELD_SITES.length} sites surveyed`)
+      if (this.def.id === 'peregrine' && this.fieldStartAt >= 0 && this.siteDone.size === FIELD_SITES.length) {
+        objectives.push(`all sites in ${fmtTime(this.t - this.fieldStartAt)}${this.t - this.fieldStartAt <= 150 ? ' — inside the 2:30 target' : ''}`)
+      }
+      objectives.push(`${(this.distance / 1000).toFixed(1)} km flown across the harbour`)
+    } else if (this.cfg.mode === 'free') {
       const f = this.freeDone
       const done = [f.takeoff, f.alt40, f.boost, f.ability, f.land].filter(Boolean).length
       objectives.push(`demo card: ${done} of 5 checks completed`)
@@ -540,7 +688,7 @@ export class Sim {
     }
     if (this.crashes > 0) objectives.push(`${this.crashes} airframe limit event${this.crashes === 1 ? '' : 's'}`)
 
-    const medal = r?.finished ? medalFor(r.time, medalsFor(this.cfg.drone, this.cfg.weather)) : undefined
+    const medal = r?.finished ? medalFor(r.time, medalsFor(this.cfg.drone, this.cfg.weather, this.scenarioId)) : undefined
     return {
       drone: this.cfg.drone,
       mode: this.cfg.mode,

@@ -4,8 +4,8 @@ import { useMemo, useRef, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { PHYS_DT } from '../game/physics.ts'
-import type { Sim } from '../game/sim.ts'
-import { GATES, GATE_RADIUS, LAPS, medalsFor } from '../game/course.ts'
+import { FIELD_SITES, type Sim } from '../game/sim.ts'
+import { GATE_RADIUS, medalsFor } from '../game/course.ts'
 import { FENCE_RADIUS, SPAWN, STATIC_TAGGABLES } from '../game/world.ts'
 import { BUILDERS, MESH_SCALE, buildEnemy } from './meshes.ts'
 import { Harbour } from './Harbour.tsx'
@@ -48,6 +48,13 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
   const coneRef = useRef<THREE.Mesh>(null)
   const arrowRef = useRef<THREE.Mesh>(null)
   const crateRef = useRef<THREE.Mesh>(null)
+  const lockRef = useRef<THREE.Mesh>(null)
+  const cableRef = useRef<THREE.Line>(null)
+  const trailRef = useRef<THREE.Line>(null)
+  const dustRef = useRef<THREE.Mesh>(null)
+  const siteRefs = useRef<Array<THREE.Group | null>>([])
+  const trailPts = useRef<Float32Array | null>(null)
+  const trailFade = useRef(0)
   const acc = useRef(0)
   const hudAt = useRef(0)
   const lastRanges = useRef(new Map<string, { r: number; t: number }>())
@@ -70,6 +77,14 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
       if (o.name === 'cargo') cargo = o
       if ((o as THREE.Mesh).isMesh) o.castShadow = true
     })
+    // translucent rotor discs sell the spinning blades at speed
+    const discMat = new THREE.MeshBasicMaterial({ color: '#20262c', transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false })
+    for (const r of rotors) {
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.46, 20), discMat)
+      disc.rotation.x = -Math.PI / 2
+      disc.name = 'rotordisc'
+      r.add(disc)
+    }
     g.userData = { rotors, cargo }
     return g
   }, [sim.def.id])
@@ -127,11 +142,11 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
   // race gate materials for status colours
   const gateMats = useMemo(
     () =>
-      GATES.map(
+      sim.gates.map(
         () =>
           new THREE.MeshStandardMaterial({ color: '#5c6773', emissive: '#FF7A1A', emissiveIntensity: 0.05, roughness: 0.5 }),
       ),
-    [],
+    [sim],
   )
   const gateGeo = useMemo(() => new THREE.TorusGeometry(GATE_RADIUS, 0.35, 8, 36), [])
   // sweep cone: apex at origin, opening along -Z (drone forward)
@@ -140,6 +155,33 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     g.translate(0, -200, 0)
     g.rotateX(Math.PI / 2)
     return g
+  }, [])
+
+  const TRAIL_N = 40
+  const trailGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    const arr = new Float32Array(TRAIL_N * 3)
+    g.setAttribute('position', new THREE.BufferAttribute(arr, 3))
+    trailPts.current = arr
+    return g
+  }, [])
+  const TRAIL_COLOR: Record<string, string> = { kestrel: '#3FD68C', clydesdale: '#d8a020', peregrine: '#FF7A1A' }
+  const trailLine = useMemo(
+    () =>
+      new THREE.Line(
+        trailGeo,
+        new THREE.LineBasicMaterial({ color: TRAIL_COLOR[sim.def.id], transparent: true, opacity: 0.7, depthWrite: false }),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trailGeo, sim.def.id],
+  )
+  const cableLine = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3))
+    const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: '#20262c' }))
+    l.visible = false
+    l.frustumCulled = false
+    return l
   }, [])
 
   const tmpV = useMemo(() => new THREE.Vector3(), [])
@@ -234,7 +276,7 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     // ---- gates ----
     if (sim.race) {
       const next = sim.race.nextGate
-      const after = (next + 1) % GATES.length
+      const after = (next + 1) % sim.gates.length
       gateMats.forEach((m, i) => {
         if (sim.race!.finished) m.emissiveIntensity = 0.1
         else if (i === next) m.emissiveIntensity = 1.6
@@ -244,7 +286,7 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
       // floating arrow to the next gate when it is off screen
       const arrow = arrowRef.current
       if (arrow && drone) {
-        const g = GATES[next]
+        const g = sim.gates[next]
         tmpV.set(g.pos.x, g.pos.y, g.pos.z)
         const ndc = tmpV2.copy(tmpV).project(camera)
         const off = ndc.z > 1 || Math.abs(ndc.x) > 1.05 || Math.abs(ndc.y) > 1.05
@@ -315,11 +357,95 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
       }
     })
 
-    // ---- crate ----
+    // ---- crate + winch cable ----
     const crate = crateRef.current
     if (crate) {
       crate.visible = !!sim.crate
       if (sim.crate) crate.position.set(sim.crate.pos.x, sim.crate.pos.y, sim.crate.pos.z)
+    }
+    const cable = cableRef.current
+    if (cable) {
+      const c = sim.crate
+      const show = !!c && c.winched && !c.landed
+      cable.visible = show
+      if (show && c && drone) {
+        const pos = cable.geometry.getAttribute('position') as THREE.BufferAttribute
+        pos.setXYZ(0, dronePos.x, dronePos.y - 0.3, dronePos.z)
+        pos.setXYZ(1, c.pos.x, c.pos.y + 0.35, c.pos.z)
+        pos.needsUpdate = true
+      }
+    }
+
+    // ---- peregrine lock ring ----
+    const lock = lockRef.current
+    if (lock) {
+      const tgt = sim.lockOn()
+      lock.visible = !!tgt
+      if (tgt) {
+        lock.position.set(tgt.pos.x, tgt.pos.y, tgt.pos.z)
+        lock.quaternion.copy(camera.quaternion)
+        lock.rotation.z = sim.t * 2.2
+        const pulse = 1 + Math.sin(sim.t * 10) * 0.08
+        lock.scale.set(pulse, pulse, pulse)
+      }
+    }
+
+    // ---- boost trail: 40-point ribbon behind the drone ----
+    const trail = trailRef.current
+    const pts = trailPts.current
+    if (trail && pts && drone) {
+      trailFade.current = sim.boosting ? 1 : Math.max(0, trailFade.current - delta * 1.6)
+      // shift history back, write the head
+      for (let i = TRAIL_N - 1; i > 0; i--) {
+        pts[i * 3] = pts[(i - 1) * 3]
+        pts[i * 3 + 1] = pts[(i - 1) * 3 + 1]
+        pts[i * 3 + 2] = pts[(i - 1) * 3 + 2]
+      }
+      pts[0] = dronePos.x
+      pts[1] = dronePos.y - 0.15
+      pts[2] = dronePos.z
+      if (trailFade.current <= 0.01) {
+        for (let i = 1; i < TRAIL_N; i++) {
+          pts[i * 3] = pts[0]
+          pts[i * 3 + 1] = pts[1]
+          pts[i * 3 + 2] = pts[2]
+        }
+      }
+      ;(trail.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+      trail.visible = trailFade.current > 0.02
+      ;(trail.material as THREE.LineBasicMaterial).opacity = 0.75 * trailFade.current
+    }
+
+    // ---- ground-effect ring under a low, working rotor ----
+    const dust = dustRef.current
+    if (dust && drone) {
+      const gnd = sim.env.groundAt(dronePos.x, dronePos.z)
+      const agl2 = dronePos.y - gnd
+      const working = !sim.state.landed && agl2 < 5 && agl2 > 0.2
+      dust.visible = working
+      if (working) {
+        const cyc = (sim.t * 1.6) % 1
+        dust.position.set(dronePos.x, gnd + 0.15, dronePos.z)
+        const r = (0.8 + cyc * 2.4) * (sim.def.id === 'clydesdale' ? 1.6 : 1)
+        dust.scale.set(r, r, 1)
+        ;(dust.material as THREE.MeshBasicMaterial).opacity = 0.3 * (1 - cyc) * (1 - agl2 / 5)
+      }
+    }
+
+    // ---- field-task site markers ----
+    if (sim.cfg.mode === 'free' && sim.scenarioId === 'field') {
+      FIELD_SITES.forEach((site, i) => {
+        const gg = siteRefs.current[i]
+        if (!gg) return
+        const done = sim.siteDone.has(site.id)
+        gg.rotation.y = sim.t * (done ? 0.3 : 1.2)
+        gg.position.y = site.pos.y + Math.sin(sim.t * 1.8 + i) * 0.6
+        gg.children.forEach((ch) => {
+          const mm = (ch as THREE.Mesh).material as THREE.MeshStandardMaterial
+          if (mm && 'emissiveIntensity' in mm) mm.emissiveIntensity = done ? 0.25 : 1.4
+          if (mm && 'color' in mm) mm.color.set(done ? '#3FD68C' : '#FF7A1A')
+        })
+      })
     }
 
     // ---- HUD feed at ~10 Hz ----
@@ -366,7 +492,7 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
       <primitive object={droneObj} ref={droneRef} position={[SPAWN.x, SPAWN.y, SPAWN.z]} />
 
       {sim.race &&
-        GATES.map((g, i) => (
+        sim.gates.map((g, i) => (
           <group key={i} position={[g.pos.x, g.pos.y, g.pos.z]} rotation-y={Math.atan2(g.normal.x, g.normal.z)}>
             <mesh geometry={gateGeo} material={gateMats[i]} />
             <mesh position={[0, -(GATE_RADIUS + Math.max(1, g.pos.y - GATE_RADIUS) / 2), 0]}>
@@ -402,6 +528,44 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
         <coneGeometry args={[0.4, 1.6, 5]} />
         <meshBasicMaterial color="#FF7A1A" transparent opacity={0.8} />
       </mesh>
+
+      {/* peregrine firing-solution ring */}
+      <mesh ref={lockRef} visible={false} renderOrder={95}>
+        <ringGeometry args={[2.6, 3.1, 4]} />
+        <meshBasicMaterial color="#FF7A1A" side={THREE.DoubleSide} transparent opacity={0.9} depthTest={false} />
+      </mesh>
+
+      {/* winch cable + boost trail */}
+      <primitive object={cableLine} ref={cableRef} />
+      <primitive object={trailLine} ref={trailRef} />
+
+      {/* rotor-wash ring near the ground */}
+      <mesh ref={dustRef} visible={false} rotation-x={-Math.PI / 2}>
+        <ringGeometry args={[1, 1.35, 18]} />
+        <meshBasicMaterial color="#cfd6da" transparent opacity={0.25} depthWrite={false} />
+      </mesh>
+
+      {/* field-task site markers */}
+      {sim.cfg.mode === 'free' &&
+        sim.scenarioId === 'field' &&
+        FIELD_SITES.map((site, i) => (
+          <group
+            key={site.id}
+            position={[site.pos.x, site.pos.y, site.pos.z]}
+            ref={(el) => {
+              siteRefs.current[i] = el
+            }}
+          >
+            <mesh>
+              <octahedronGeometry args={[2.2]} />
+              <meshStandardMaterial color="#FF7A1A" emissive="#FF7A1A" emissiveIntensity={1.4} transparent opacity={0.92} />
+            </mesh>
+            <mesh rotation-x={-Math.PI / 2} position={[0, -0.4, 0]}>
+              <torusGeometry args={[4.4, 0.16, 6, 24]} />
+              <meshStandardMaterial color="#FF7A1A" emissive="#FF7A1A" emissiveIntensity={1} />
+            </mesh>
+          </group>
+        ))}
     </group>
   )
 }
@@ -427,18 +591,23 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
   const rad = Math.hypot(s.pos.x, s.pos.z)
 
   let objective: string
+  const nContacts = sim.enemies.length
+  const contactLine = `${nContacts === 4 ? 'FOUR' : 'TWO'} HOSTILE DRONES ON PATROL — SEE RADAR.`
   if (sim.cfg.mode === 'free') {
-    objective = 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
+    objective =
+      sim.scenarioId === 'field'
+        ? 'FIELD TASKS — SURVEY THE FOUR MARKED SITES.'
+        : 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
   } else if (sim.cfg.mode === 'race') {
     objective = sim.race!.started
       ? 'FLY THROUGH THE GLOWING ORANGE RING.'
-      : `${LAPS} LAPS OF 8 RINGS — THEY LIGHT UP IN ORDER.\nMISSING A RING COSTS +3 S.`
+      : `${sim.course.label.toUpperCase()} — ${sim.course.laps} LAPS OF ${sim.gates.length} RINGS.\nTHEY LIGHT UP IN ORDER · MISSING ONE COSTS +3 S.`
   } else if (sim.def.id === 'peregrine') {
-    objective = 'TWO HOSTILE DRONES ON PATROL — SEE RADAR.\nCLOSE IN AND CAPTURE WITH THE NET (F).'
+    objective = `${contactLine}\nCLOSE IN AND CAPTURE WITH THE NET (F).`
   } else if (sim.def.id === 'kestrel') {
-    objective = 'TWO HOSTILE DRONES ON PATROL — SEE RADAR.\nSWEEP (F) EACH ONE FROM INSIDE 180 M.'
+    objective = `${contactLine}\nSWEEP (F) EACH ONE FROM INSIDE 180 M.`
   } else {
-    objective = 'TWO HOSTILE DRONES ON PATROL — SEE RADAR.\nSHADOW EACH ONE — CLOSE WITHIN 90 M.'
+    objective = `${contactLine}\nSHADOW EACH ONE — CLOSE WITHIN 90 M.`
   }
 
   let ability: HudData['ability']
@@ -450,27 +619,28 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
       ? { label: 'CARGO RELEASE', ready: true, frac: 0, detail: 'PAYLOAD 8.0 KG' }
       : { label: 'CARGO RELEASE', ready: false, frac: 0, detail: 'PAYLOAD AWAY' }
   } else {
+    const locked = sim.lockOn() !== null
     ability = {
       label: 'NET LAUNCHER',
       ready: sim.netAmmo > 0 && sim.t >= sim.cooldownUntil,
       frac: cdFrac,
-      detail: sim.netAmmo > 0 ? `${sim.netAmmo}/3 NETS` : 'RELOADING',
+      detail: sim.netAmmo > 0 ? (locked ? `LOCKED — FIRE (${sim.netAmmo}/3)` : `${sim.netAmmo}/3 NETS`) : 'RELOADING',
     }
   }
 
   let race: HudData['race'] = null
   if (sim.race) {
-    const g = GATES[sim.race.nextGate]
+    const g = sim.gates[sim.race.nextGate]
     race = {
       started: sim.race.started,
       finished: sim.race.finished,
       time: sim.race.time,
       lap: sim.race.lap,
-      laps: LAPS,
+      laps: sim.course.laps,
       nextGate: sim.race.nextGate,
-      gates: GATES.length,
+      gates: sim.gates.length,
       lastLap: sim.race.lapTimes.length ? sim.race.lapTimes[sim.race.lapTimes.length - 1] : null,
-      goldTime: medalsFor(sim.cfg.drone, sim.cfg.weather).gold,
+      goldTime: medalsFor(sim.cfg.drone, sim.cfg.weather, sim.scenarioId).gold,
       gateDist: Math.hypot(g.pos.x - s.pos.x, g.pos.y - s.pos.y, g.pos.z - s.pos.z),
     }
   }
@@ -488,6 +658,23 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
       const rel = normAngle(bearingAbs - heading)
       return { id: e.id, label: e.label, bearing: rel, range, closing, captured: e.captured }
     })
+  }
+
+  let intel: string[] | null = null
+  if (sim.def.id === 'kestrel') {
+    const rows: Array<{ d: number; label: string }> = []
+    for (const [id, until] of sim.tagged) {
+      if (until < sim.t) continue
+      const st = STATIC_TAGGABLES.find((tg) => tg.id === id)
+      const en = sim.enemies.find((e) => e.id === id)
+      const pos = st?.pos ?? en?.pos
+      const label = st?.label ?? en?.label
+      if (!pos || !label) continue
+      rows.push({ d: Math.hypot(pos.x - s.pos.x, pos.y - s.pos.y, pos.z - s.pos.z), label: label.split(' ·')[0] })
+    }
+    rows.sort((a, b) => a.d - b.d)
+    intel = rows.slice(0, 4).map((r) => `${r.label} · ${r.d.toFixed(0)} M`)
+    if (intel.length === 0) intel = null
   }
 
   return {
@@ -516,6 +703,7 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
     contacts,
     camLabel: CAM_LABELS[camMode % 3],
     steps: sim.objectiveSteps(),
+    intel,
   }
 }
 

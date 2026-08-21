@@ -1,10 +1,12 @@
-// Intercept mode: two enemy drones on looping patrols between 40 and 80 m.
+// Intercept mode: enemy drones on looping patrols between 40 and 80 m.
 // Kinematic movers, not full physics — they only need to be believable prey.
+// Two scenario sets: the two-ship harbour patrol, and a four-ship swarm.
 import { v3, type V3 } from './physics.ts'
 
 export interface Enemy {
   id: string
   label: string
+  kind: 'orbit' | 'erratic'
   pos: V3
   vel: V3
   yaw: number
@@ -13,34 +15,66 @@ export interface Enemy {
   splashed: boolean
   evading: boolean
   wpIndex: number
+  // orbit params
+  center: { x: number; z: number }
+  radius: number
+  speed: number
+  alt: number
+  // erratic params
+  wps: V3[]
 }
 
-const E2_WAYPOINTS: V3[] = [
+const PATROL_WPS: V3[] = [
   { x: 135, y: 48, z: -112 },
   { x: -60, y: 70, z: -172 },
   { x: -170, y: 55, z: -60 },
   { x: -40, y: 66, z: 20 },
   { x: 120, y: 78, z: 60 },
 ]
+const SWARM_WPS_B: V3[] = [
+  { x: -200, y: 60, z: 90 },
+  { x: -20, y: 45, z: 110 },
+  { x: 100, y: 70, z: -20 },
+  { x: -120, y: 75, z: -130 },
+  { x: -250, y: 50, z: -40 },
+]
 
-export function spawnEnemies(): Enemy[] {
+function orbiter(id: string, label: string, cx: number, cz: number, r: number, speed: number, alt: number, a0 = 0): Enemy {
+  return {
+    id, label, kind: 'orbit',
+    pos: v3(cx + Math.cos(a0) * r, alt, cz + Math.sin(a0) * r), vel: v3(),
+    yaw: 0, captured: false, splashed: false, evading: false, wpIndex: 0,
+    center: { x: cx, z: cz }, radius: r, speed, alt, wps: [],
+  }
+}
+function erratic(id: string, label: string, wps: V3[], startWp = 0): Enemy {
+  return {
+    id, label, kind: 'erratic',
+    pos: { ...wps[startWp] }, vel: v3(),
+    yaw: 0, captured: false, splashed: false, evading: false, wpIndex: (startWp + 1) % wps.length,
+    center: { x: 0, z: 0 }, radius: 0, speed: 0, alt: 0, wps,
+  }
+}
+
+export type EnemySet = 'patrol' | 'swarm'
+
+export function spawnEnemies(set: EnemySet = 'patrol'): Enemy[] {
+  if (set === 'swarm') {
+    return [
+      orbiter('e1', 'CONTACT 01 · SLOW ORBIT', 40, -30, 100, 8, 55),
+      orbiter('e2', 'CONTACT 02 · LOW ORBIT', -140, 30, 70, 10, 40, Math.PI),
+      erratic('e3', 'CONTACT 03 · ERRATIC', PATROL_WPS),
+      erratic('e4', 'CONTACT 04 · ERRATIC', SWARM_WPS_B, 2),
+    ]
+  }
   return [
-    {
-      id: 'e1', label: 'CONTACT 01 · SLOW ORBIT', pos: v3(190, 55, -40), vel: v3(),
-      yaw: 0, captured: false, splashed: false, evading: false, wpIndex: 0,
-    },
-    {
-      id: 'e2', label: 'CONTACT 02 · ERRATIC', pos: { ...E2_WAYPOINTS[0] }, vel: v3(),
-      yaw: 0, captured: false, splashed: false, evading: false, wpIndex: 1,
-    },
+    orbiter('e1', 'CONTACT 01 · SLOW ORBIT', 40, -30, 100, 8, 55),
+    erratic('e2', 'CONTACT 02 · ERRATIC', PATROL_WPS),
   ]
 }
 
-const E1_CENTER = { x: 40, z: -30 }
-const E1_RADIUS = 100
-const E1_SPEED = 8
-const E2_SPEED = 14
-const E2_FLEE_SPEED = 19
+const E_SPEED = 14
+const E_FLEE_SPEED = 19
 const CHUTE_SINK = 2.2
 
 export function stepEnemy(e: Enemy, player: V3, wind: V3, t: number, dt: number): void {
@@ -66,11 +100,11 @@ export function stepEnemy(e: Enemy, player: V3, wind: V3, t: number, dt: number)
 
   let target: V3
   let speed: number
-  if (e.id === 'e1') {
+  if (e.kind === 'orbit') {
     // slow, predictable circle
-    const a = Math.atan2(e.pos.z - E1_CENTER.z, e.pos.x - E1_CENTER.x) + ((E1_SPEED / E1_RADIUS) * dt * 40) / 40 + 0.12
-    target = { x: E1_CENTER.x + Math.cos(a) * E1_RADIUS, y: 55, z: E1_CENTER.z + Math.sin(a) * E1_RADIUS }
-    speed = E1_SPEED
+    const a = Math.atan2(e.pos.z - e.center.z, e.pos.x - e.center.x) + 0.12
+    target = { x: e.center.x + Math.cos(a) * e.radius, y: e.alt, z: e.center.z + Math.sin(a) * e.radius }
+    speed = e.speed
   } else {
     const dp = Math.hypot(player.x - e.pos.x, player.y - e.pos.y, player.z - e.pos.z)
     if (dp < 80) e.evading = true
@@ -85,11 +119,11 @@ export function stepEnemy(e: Enemy, player: V3, wind: V3, t: number, dt: number)
         y: Math.min(85, e.pos.y + 25),
         z: Math.max(-175, Math.min(120, e.pos.z + (az / m) * 120)),
       }
-      speed = E2_FLEE_SPEED
+      speed = E_FLEE_SPEED
     } else {
-      target = E2_WAYPOINTS[e.wpIndex]
-      speed = E2_SPEED
-      if (Math.hypot(target.x - e.pos.x, target.z - e.pos.z) < 25) e.wpIndex = (e.wpIndex + 1) % E2_WAYPOINTS.length
+      target = e.wps[e.wpIndex]
+      speed = E_SPEED
+      if (Math.hypot(target.x - e.pos.x, target.z - e.pos.z) < 25) e.wpIndex = (e.wpIndex + 1) % e.wps.length
     }
   }
 

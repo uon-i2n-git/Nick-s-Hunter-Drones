@@ -3,7 +3,6 @@
 // intercept (net capture of both enemies, parachute splashdown).
 // Run: node --experimental-strip-types tools/verify.ts
 import { Sim, fmtTime } from '../src/game/sim.ts'
-import { GATES } from '../src/game/course.ts'
 import { SPAWN } from '../src/game/world.ts'
 import type { DroneId } from '../src/game/drones.ts'
 import type { WeatherId } from '../src/game/weather.ts'
@@ -40,8 +39,8 @@ function freshKeys(): Keys {
 // ---------- RACE ----------
 // two-phase gate approach: line up 25 m before the gate plane, then punch
 // through to 12 m past it. boost on when roughly aligned and far enough out.
-function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = null, testBackwards = false) {
-  const sim = new Sim({ drone, mode: 'race', weather })
+function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = null, testBackwards = false, scenario = 'circuit') {
+  const sim = new Sim({ drone, mode: 'race', weather, scenario })
   const keys = freshKeys()
   let steps = 0
   const maxSteps = 600 * 120
@@ -68,8 +67,8 @@ function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = n
     }
     const r = sim.race!
     let gi = r.nextGate
-    if (skipGate !== null && gi === skipGate) gi = (gi + 1) % GATES.length // deliberately miss one
-    const g = GATES[gi]
+    if (skipGate !== null && gi === skipGate) gi = (gi + 1) % sim.gates.length // deliberately miss one
+    const g = sim.gates[gi]
     if (gi !== phaseGate) {
       phaseGate = gi
       staged = false
@@ -102,8 +101,8 @@ function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = n
       // continuous racing line: aim the gate centre in wide arcs, never stop —
       // stage-and-charge stops cost more battery than these runs can afford.
       // if it slides past the plane and misses, aim the next gate and take +3s.
-      const aimGi = along > 8 ? (gi + 1) % GATES.length : gi
-      const ag = GATES[aimGi]
+      const aimGi = along > 8 ? (gi + 1) % sim.gates.length : gi
+      const ag = sim.gates[aimGi]
       const lead = 6
       // stay above hull height while far out, drop to ring height on approach
       const dAim = Math.hypot(ag.pos.x - s.pos.x, ag.pos.z - s.pos.z)
@@ -137,7 +136,7 @@ function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = n
     steps++
   }
   const rep = sim.result
-  console.log(`\nRACE ${drone} / ${weather}${skipGate !== null ? ` (skipping gate ${skipGate + 1})` : ''}${testBackwards ? ' (with backwards attempt)' : ''}`)
+  console.log(`\nRACE ${scenario} ${drone} / ${weather}${skipGate !== null ? ` (skipping gate ${skipGate + 1})` : ''}${testBackwards ? ' (with backwards attempt)' : ''}`)
   if (!rep) {
     console.log(`  DID NOT FINISH in 600 s — nextGate ${sim.race!.nextGate}, lap ${sim.race!.lap}, battery ${(sim.state.battery * 100).toFixed(0)}%`)
     return
@@ -148,8 +147,8 @@ function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = n
 }
 
 // ---------- INTERCEPT ----------
-function runIntercept() {
-  const sim = new Sim({ drone: 'peregrine', mode: 'intercept', weather: 'clear' })
+function runIntercept(scenario = 'patrol') {
+  const sim = new Sim({ drone: 'peregrine', mode: 'intercept', weather: 'clear', scenario })
   const keys = freshKeys()
   let steps = 0
   let shots = 0
@@ -160,18 +159,18 @@ function runIntercept() {
       const s = sim.state
       const d = Math.hypot(target.pos.x - s.pos.x, target.pos.y - s.pos.y, target.pos.z - s.pos.z)
       // lead the target slightly
-      const lead = Math.min(1.2, d / 38)
+      const lead = Math.min(sim.enemies.length > 2 ? 2.2 : 1.2, d / 30)
       steerTo(
         sim,
         target.pos.x + target.vel.x * lead,
         target.pos.y + target.vel.y * lead + 1,
         target.pos.z + target.vel.z * lead,
         keys,
-        d > 42,
+        d > (sim.enemies.length > 2 ? 90 : 42),
       )
       const f = sim.forward()
       const dot = (f.x * (target.pos.x - s.pos.x) + f.y * (target.pos.y - s.pos.y) + f.z * (target.pos.z - s.pos.z)) / d
-      if (d < 38 && dot > 0.88 && sim.netAmmo > 0 && sim.t >= sim.cooldownUntil) {
+      if (d < 40 && dot > 0.82 && sim.netAmmo > 0 && sim.t >= sim.cooldownUntil) {
         sim.requestAbility()
         shots++
       }
@@ -181,8 +180,8 @@ function runIntercept() {
   }
   const caps = sim.enemies.filter((e) => e.captured).length
   const splashed = sim.enemies.filter((e) => e.splashed).length
-  console.log(`\nINTERCEPT peregrine / clear`)
-  console.log(`  result: ${sim.result ? sim.result.reason : 'TIMED OUT'} at t=${fmtTime(sim.t)} | captures ${caps}/2 | splashed down ${splashed} | net shots ${shots}`)
+  console.log(`\nINTERCEPT ${scenario} peregrine / clear`)
+  console.log(`  result: ${sim.result ? sim.result.reason : 'TIMED OUT'} at t=${fmtTime(sim.t)} | captures ${caps}/${sim.enemies.length} | splashed down ${splashed} | net shots ${shots}`)
   console.log(`  battery left ${(sim.state.battery * 100).toFixed(0)}%`)
 }
 
@@ -213,5 +212,9 @@ runRace('kestrel', 'gusty')
 runRace('peregrine', 'gusty')
 runRace('kestrel', 'clear', 3) // miss gate 4 → +3 s penalty path
 runRace('peregrine', 'clear', null, true) // backwards-crossing rejection
+runRace('peregrine', 'clear', null, false, 'sprint')
+runRace('kestrel', 'clear', null, false, 'sprint')
+runRace('peregrine', 'gusty', null, false, 'sprint')
 runIntercept()
+runIntercept('swarm')
 runCrash()
