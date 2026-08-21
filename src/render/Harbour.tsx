@@ -160,9 +160,9 @@ function Terrain() {
       if (h === 0) c.copy(ASPHALT)
       else if (nearBeach) c.set('#c4ad7e').offsetHSL(0, 0, (rnd() - 0.5) * 0.04)
       else if (h === 3) c.copy(rnd() < 0.6 ? ASPHALT : DIRT).offsetHSL(0, 0, (rnd() - 0.5) * 0.05)
-      else if (northEstate && x > -60 && x < 158) c.set('#6a5a3e').offsetHSL(0, 0, (rnd() - 0.5) * 0.06) // vineyard soil
-      else if (northEstate && x > -100 && x <= -60) c.set('#8d8578').offsetHSL(0, 0, (rnd() - 0.5) * 0.04) // resort grounds
-      else if (northEstate && x > -320 && x <= -100) c.set('#5f8f42').offsetHSL(0, (rnd() - 0.5) * 0.04, (rnd() - 0.5) * 0.05) // fairways
+      else if (northEstate && x > -20 && x < 158) c.set('#6a5a3e').offsetHSL(0, 0, (rnd() - 0.5) * 0.06) // vineyard soil
+      else if (northEstate && x > -150 && x <= -20) c.set('#7d9556').offsetHSL(0, 0, (rnd() - 0.5) * 0.05) // resort lawns
+      else if (northEstate && x > -320 && x <= -150) c.set('#5f8f42').offsetHSL(0, (rnd() - 0.5) * 0.04, (rnd() - 0.5) * 0.05) // fairways
       else c.copy(rnd() < 0.75 ? GRASS : GRASS2).offsetHSL(0, (rnd() - 0.5) * 0.05, (rnd() - 0.5) * 0.06)
       colors[i * 3] = c.r
       colors[i * 3 + 1] = c.g
@@ -937,22 +937,24 @@ function PortProps() {
   )
 }
 
-// the estate behind the port: vineyards east, golf west, and the
-// hotel + convention centre between them. All beyond the geofence — scenery.
+// the estate behind the port: vineyards east, golf west, and a low-rise
+// resort + conference campus between them — angled wings around a pool,
+// solar-panelled grey roofs, villa rows, trees and a pond, like a Hunter
+// Valley resort. All beyond the geofence — scenery.
 function NorthEstate({ gusty }: { gusty: boolean }) {
-  const { vines, bunkers, flags, flagTips, trunks, crowns, windows } = useMemo(() => {
+  const inst = useMemo(() => {
     const rnd = mulberry32(89)
     const vineItems: Inst[] = []
     // vine rows run east-west, along the terrain contours
     for (const block of [
-      { x0: -44, x1: 152, z0: -318, z1: -388 },
-      { x0: -30, x1: 152, z0: -398, z1: -476 },
+      { x0: -12, x1: 152, z0: -318, z1: -388 },
+      { x0: -12, x1: 152, z0: -398, z1: -476 },
     ]) {
       for (let z = block.z0; z > block.z1; z -= 5) {
         const gy = terrainHeight((block.x0 + block.x1) / 2, z)
-        const len = block.x1 - block.x0 - rnd() * 26
+        const len = block.x1 - block.x0 - rnd() * 22
         vineItems.push({
-          m: mat4(block.x0 + len / 2 + rnd() * 10, gy + 0.55, z, 0, len, 1.05, 0.7),
+          m: mat4(block.x0 + len / 2 + rnd() * 8, gy + 0.55, z, 0, len, 1.05, 0.7),
           c: new THREE.Color(rnd() < 0.5 ? '#3f5c33' : '#48663a'),
         })
       }
@@ -961,40 +963,109 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
     const bunkerItems: Inst[] = []
     const flagItems: Inst[] = []
     const tipItems: Inst[] = []
-    const trunkItems: Inst[] = []
-    const crownItems: Inst[] = []
     for (let i = 0; i < 12; i++) {
-      const x = -290 + rnd() * 175
+      const x = -290 + rnd() * 130
       const z = -320 - rnd() * 150
       bunkerItems.push({ m: mat4(x, terrainHeight(x, z) + 0.12, z, rnd(), 5 + rnd() * 6, 0.3, 4 + rnd() * 4) })
     }
     for (let i = 0; i < 6; i++) {
-      const x = -280 + rnd() * 165
+      const x = -285 + rnd() * 120
       const z = -330 - rnd() * 130
       const gy = terrainHeight(x, z)
       flagItems.push({ m: mat4(x, gy + 1.3, z, 0, 1, 2.6, 1) })
       tipItems.push({ m: mat4(x, gy + 2.75, z) })
     }
-    for (let i = 0; i < 30; i++) {
-      const x = -305 + rnd() * 200
-      const z = -312 - rnd() * 165
+    // eucalypt belts: clustered around the campus + villas, scattered on the golf
+    const trunkItems: Inst[] = []
+    const crownItems: Inst[] = []
+    const tree = (x: number, z: number) => {
       const gy = terrainHeight(x, z)
-      const h = 4 + rnd() * 3
+      const h = 4.5 + rnd() * 3.5
       trunkItems.push({ m: mat4(x, gy + h / 2, z, 0, 1, h / 6, 1) })
-      crownItems.push({ m: mat4(x, gy + h + 1.4, z, rnd() * 3, 2.4, 2, 2.4), c: new THREE.Color(rnd() < 0.5 ? '#3c5e33' : '#4e7a3a') })
+      crownItems.push({ m: mat4(x, gy + h + 1.5, z, rnd() * 3, 2.6, 2.2, 2.6), c: new THREE.Color(rnd() < 0.5 ? '#3c5e33' : '#4e7a3a') })
     }
-    const windowItems: Inst[] = [
-      // hotel tower, lit faces toward the harbour and back
-      { m: mat4(-80, terrainHeight(-80, -352) + 26, -338.6, 0, 24, 40, 1) },
-      { m: mat4(-80, terrainHeight(-80, -352) + 26, -365.4, Math.PI, 24, 40, 1) },
+    for (let c = 0; c < 11; c++) {
+      const cx = -280 + rnd() * 240
+      const cz = -318 - rnd() * 150
+      for (let t = 0; t < 5; t++) tree(cx + (rnd() - 0.5) * 22, cz + (rnd() - 0.5) * 18)
+    }
+    for (let i = 0; i < 18; i++) tree(-300 + rnd() * 260, -312 - rnd() * 160)
+    // villa rows curving around the golf side, like resort lodges
+    const villaWallItems: Inst[] = []
+    const villaRoofItems: Inst[] = []
+    const wallCols = ['#e2ded2', '#d8d6d0', '#cfc9ba', '#e8e4da']
+    const roofCols = ['#4a4e52', '#3c4046', '#565a5e']
+    const villa = (x: number, z: number, ry: number) => {
+      const gy = terrainHeight(x, z)
+      villaWallItems.push({ m: mat4(x, gy + 1.6, z, ry), c: new THREE.Color(wallCols[Math.floor(rnd() * wallCols.length)]) })
+      villaRoofItems.push({ m: mat4(x, gy + 3.9, z, ry + Math.PI / 4), c: new THREE.Color(roofCols[Math.floor(rnd() * roofCols.length)]) })
+    }
+    for (let i = 0; i < 13; i++) {
+      const a = 0.5 + i * 0.155
+      villa(-185 + Math.cos(a) * 54, -378 + Math.sin(a) * 46, -a)
+    }
+    for (let i = 0; i < 11; i++) {
+      const a = -0.3 + i * 0.19
+      villa(-160 + Math.cos(a) * 40, -436 + Math.sin(a) * 34, -a + 0.3)
+    }
+    for (let gx = 0; gx < 4; gx++) {
+      for (let gz = 0; gz < 2; gz++) villa(-262 + gx * 11, -408 - gz * 12, (rnd() - 0.5) * 0.2)
+    }
+    // campus wings: light walls, oversized dark roofs with solar arrays
+    const wings = [
+      { x: -58, z: -346, w: 54, h: 8.5, d: 18 },
+      { x: -118, z: -350, w: 40, h: 8.5, d: 18 },
+      { x: -74, z: -394, w: 60, h: 11, d: 24 }, // main block
+      { x: -128, z: -398, w: 42, h: 9, d: 30 }, // conference hall
     ]
+    const wingItems: Inst[] = []
+    const roofItems: Inst[] = []
+    const solarItems: Inst[] = []
+    const windowItems: Inst[] = []
+    for (const wg of wings) {
+      const gy = terrainHeight(wg.x, wg.z)
+      wingItems.push({ m: mat4(wg.x, gy + wg.h / 2, wg.z, 0, wg.w, wg.h, wg.d) })
+      roofItems.push({ m: mat4(wg.x, gy + wg.h + 0.4, wg.z, 0, wg.w + 2, 0.8, wg.d + 2) })
+      const nSolar = Math.floor(wg.w / 14)
+      for (let s = 0; s < nSolar; s++) {
+        solarItems.push({ m: mat4(wg.x - wg.w / 2 + 8 + s * 13, gy + wg.h + 1, wg.z, 0, 10, 0.25, wg.d * 0.65) })
+      }
+      // lit faces toward the pool court
+      const dir = wg.z > -370 ? -1 : 1
+      windowItems.push({ m: mat4(wg.x, gy + wg.h / 2, wg.z + dir * (wg.d / 2 + 0.15), dir > 0 ? 0 : Math.PI, wg.w * 0.9, wg.h * 0.8, 1) })
+    }
+    // pool court furniture: loungers + car-park lane paint
+    const furnItems: Inst[] = []
+    for (let i = 0; i < 12; i++) {
+      furnItems.push({ m: mat4(-96 + i * 2.6, terrainHeight(-84, -372) + 0.5, -374 + (i % 2) * 1.2, 0, 1.8, 0.35, 0.8) })
+    }
+    for (let i = 0; i < 7; i++) {
+      furnItems.push({ m: mat4(-38 + 3.4 * i, terrainHeight(-28, -390) + 0.32, -390, 0, 0.35, 0.05, 5.5) })
+    }
+    // a few cars at the resort car park
+    const carItems: Inst[] = []
+    const carCols = ['#c9cdd2', '#8a9096', '#3c4046', '#7a2f2a', '#28455c']
+    for (let i = 0; i < 6; i++) {
+      carItems.push({
+        m: mat4(-36.3 + 3.4 * i, terrainHeight(-28, -386) + 0.75, -385.4, Math.PI / 2, 4.1, 1.25, 1.8),
+        c: new THREE.Color(carCols[Math.floor(rnd() * carCols.length)]),
+      })
+    }
+    const box = new THREE.BoxGeometry(1, 1, 1)
     return {
-      vines: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 1 }), vineItems),
+      vines: makeInstanced(box, new THREE.MeshStandardMaterial({ roughness: 1 }), vineItems),
       bunkers: makeInstanced(new THREE.CylinderGeometry(1, 1, 1, 8), new THREE.MeshStandardMaterial({ color: '#d8c9a0', roughness: 1 }), bunkerItems),
       flags: makeInstanced(new THREE.CylinderGeometry(0.05, 0.07, 1, 5), new THREE.MeshStandardMaterial({ color: '#e8e6df' }), flagItems),
       flagTips: makeInstanced(new THREE.ConeGeometry(0.5, 0.5, 4), new THREE.MeshStandardMaterial({ color: '#ff7a1a' }), tipItems),
       trunks: makeInstanced(new THREE.CylinderGeometry(0.16, 0.24, 6, 5), new THREE.MeshStandardMaterial({ color: '#7a6248' }), trunkItems),
       crowns: makeInstanced(new THREE.IcosahedronGeometry(1.5, 0), new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), crownItems),
+      villaWalls: makeInstanced(new THREE.BoxGeometry(6.5, 3.2, 5.2), new THREE.MeshStandardMaterial({ roughness: 0.9 }), villaWallItems),
+      villaRoofs: makeInstanced(new THREE.ConeGeometry(4.6, 2, 4), new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), villaRoofItems),
+      wings: makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#ddd9ce', roughness: 0.8 }), wingItems),
+      roofs: makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#4a4e52', roughness: 0.85 }), roofItems),
+      solar: makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#26364a', metalness: 0.5, roughness: 0.35 }), solarItems),
+      furn: makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#eceae2', roughness: 0.7 }), furnItems),
+      cars: makeInstanced(box, new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.3 }), carItems),
       windows: makeInstanced(
         new THREE.PlaneGeometry(1, 1),
         new THREE.MeshBasicMaterial({ map: windowsTexture(), transparent: true, opacity: gusty ? 0.9 : 0.35, depthWrite: false }),
@@ -1002,62 +1073,48 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
       ),
     }
   }, [gusty])
-  const hy = terrainHeight(-80, -352)
-  const cy = terrainHeight(-80, -415)
+  const py = terrainHeight(-84, -368) // pool court
+  const ky = terrainHeight(-28, -388) // car park
+  const wy = terrainHeight(-258, -352) // pond
   return (
     <group>
-      <primitive object={vines} />
-      <primitive object={bunkers} />
-      <primitive object={flags} />
-      <primitive object={flagTips} />
-      <primitive object={trunks} />
-      <primitive object={crowns} />
-      <primitive object={windows} />
-      {/* the hotel tower on its podium */}
-      <group position={[-80, hy, -352]}>
-        <mesh position={[0, 2, 0]} receiveShadow>
-          <boxGeometry args={[58, 4, 44]} />
-          <meshStandardMaterial color="#8d8578" roughness={0.9} />
+      {Object.values(inst).map((m, i) => (
+        <primitive key={i} object={m} />
+      ))}
+      {/* pool court between the wings */}
+      <group position={[-84, py, -368]}>
+        <mesh position={[0, 0.18, 0]} receiveShadow>
+          <boxGeometry args={[36, 0.36, 22]} />
+          <meshStandardMaterial color="#d8d3c8" roughness={0.9} />
         </mesh>
-        <mesh position={[0, 26, 0]} castShadow>
-          <boxGeometry args={[26, 48, 26]} />
-          <meshStandardMaterial color="#7f97ab" metalness={0.5} roughness={0.35} />
+        <mesh position={[2, 0.42, 0]}>
+          <boxGeometry args={[20, 0.3, 11]} />
+          <meshStandardMaterial color="#3fb0d8" roughness={0.25} metalness={0.1} />
         </mesh>
-        <mesh position={[0, 50.8, 0]}>
-          <boxGeometry args={[27, 1.6, 27]} />
-          <meshStandardMaterial color="#5d6a72" roughness={0.8} />
+        {/* the pink waterslide splash corner */}
+        <mesh position={[-12, 0.42, 2]}>
+          <boxGeometry args={[8, 0.28, 7]} />
+          <meshStandardMaterial color="#d886a8" roughness={0.8} />
         </mesh>
-        <mesh position={[0, 52.4, 0]}>
-          <boxGeometry args={[5, 2, 3]} />
-          <meshStandardMaterial color="#3d444c" roughness={0.8} />
+        <mesh position={[-13.5, 2.2, 3]}>
+          <cylinderGeometry args={[1.1, 1.3, 4, 8]} />
+          <meshStandardMaterial color="#c85a90" roughness={0.7} />
         </mesh>
-        {/* porte cochère toward the water */}
-        <mesh position={[0, 6.5, 26]}>
-          <boxGeometry args={[18, 0.8, 9]} />
-          <meshStandardMaterial color="#3d444c" roughness={0.8} />
-        </mesh>
-        {[-7, 7].map((ox) => (
-          <mesh key={ox} position={[ox, 4.6, 29]}>
-            <cylinderGeometry args={[0.25, 0.3, 4.5, 6]} />
-            <meshStandardMaterial color="#d8d5cc" />
-          </mesh>
-        ))}
-      </group>
-      {/* convention centre: long low hall with a vaulted roof */}
-      <group position={[-80, cy, -415]}>
-        <mesh position={[0, 6, 0]} castShadow>
-          <boxGeometry args={[86, 12, 52]} />
-          <meshStandardMaterial color="#b9b4a6" roughness={0.85} />
-        </mesh>
-        <mesh position={[0, 12, 0]} rotation-z={Math.PI / 2}>
-          <cylinderGeometry args={[26, 26, 86, 14, 1, false, 0, Math.PI]} />
-          <meshStandardMaterial color="#d8d5cc" roughness={0.6} />
-        </mesh>
-        <mesh position={[0, 4, 28.5]}>
-          <boxGeometry args={[40, 8, 5]} />
-          <meshStandardMaterial color="#7f97ab" metalness={0.4} roughness={0.4} />
+        <mesh position={[-11.5, 2.4, 2]} rotation-z={-0.9}>
+          <cylinderGeometry args={[0.55, 0.55, 5.5, 6]} />
+          <meshStandardMaterial color="#e094b8" roughness={0.7} />
         </mesh>
       </group>
+      {/* car park slab */}
+      <mesh position={[-28, ky + 0.08, -388]} receiveShadow>
+        <boxGeometry args={[26, 0.16, 28]} />
+        <meshStandardMaterial color="#3a3f43" roughness={0.95} />
+      </mesh>
+      {/* pond on the golf side */}
+      <mesh position={[-258, wy - 0.1, -352]}>
+        <cylinderGeometry args={[17, 17, 0.3, 14]} />
+        <meshStandardMaterial color="#2d5f78" roughness={0.3} metalness={0.1} />
+      </mesh>
     </group>
   )
 }
