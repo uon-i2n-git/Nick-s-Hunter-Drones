@@ -1,6 +1,6 @@
-# Nick's Hunter Drones: Flight Ops
+# Hunter Defence Drones: Flight Ops
 
-A 3D browser drone game that doubles as a product showcase for **Nick's Hunter Drones**, a fictional drone manufacturer. Built as a stand exhibit for the Hunter Defence Conference.
+A 3D browser drone game that doubles as a product showcase for **Hunter Defence Drones**, a fictional drone manufacturer. Built as a stand exhibit for the Hunter Defence Conference.
 
 The player is not a pilot fantasy character. The player is **the customer**. Three aircraft, three very different jobs, and by the end they know which one they would buy.
 
@@ -78,4 +78,4 @@ node --experimental-strip-types tools/verify.ts  # autopilot flies full races + 
 
 ## Disclaimer
 
-Nick's Hunter Drones is a fictional company created for this demonstration. Every specification in this repository is illustrative and is not a performance guarantee.
+Hunter Defence Drones is a fictional company created for this demonstration. Every specification in this repository is illustrative and is not a performance guarantee.

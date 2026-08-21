@@ -1,6 +1,6 @@
 # Drone Specifications
 
-> **Disclaimer.** Nick's Hunter Drones is a fictional company created for this demonstration. Every figure below is an illustrative product specification for game balance and marketing demonstration purposes. Nothing here is a certified performance guarantee. This notice must remain visible in the in game hangar.
+> **Disclaimer.** Hunter Defence Drones is a fictional company created for this demonstration. Every figure below is an illustrative product specification for game balance and marketing demonstration purposes. Nothing here is a certified performance guarantee. This notice must remain visible in the in game hangar.
 
 ---
 

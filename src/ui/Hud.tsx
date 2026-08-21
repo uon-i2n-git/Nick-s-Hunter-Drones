@@ -49,6 +49,7 @@ export interface HudData {
   race: RaceHud | null
   contacts: ContactInfo[] | null
   camLabel: string
+  steps: Array<{ label: string; state: 'done' | 'now' | 'todo' }>
 }
 
 const R2D = 180 / Math.PI
@@ -56,10 +57,20 @@ const R2D = 180 / Math.PI
 export function Hud({ d }: { d: HudData }) {
   return (
     <div className="hud">
-      {/* top left: objective */}
+      {/* top left: objective + live checklist */}
       <div className="hud-obj">
         <div className="hud-label">{d.droneModel} · OBJECTIVE</div>
         <div className="hud-obj-text">{d.objective}</div>
+        {d.steps.length > 0 && (
+          <div className="hud-steps">
+            {d.steps.map((s, i) => (
+              <div key={i} className={`hud-step ${s.state}`}>
+                <span className="mark">{s.state === 'done' ? '■' : s.state === 'now' ? '▸' : '□'}</span>
+                {s.label}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* top centre: race block / messages */}
@@ -166,6 +177,7 @@ export function Hud({ d }: { d: HudData }) {
           </div>
         </div>
         <div className="hud-label muted">TAB · {d.camLabel}</div>
+        <div className="hud-label muted">H · CONTROLS</div>
       </div>
     </div>
   )

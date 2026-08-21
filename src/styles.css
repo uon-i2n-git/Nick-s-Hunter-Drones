@@ -130,6 +130,8 @@ h2 { font-size: 25px; font-weight: 600; letter-spacing: -0.01em; margin-top: 7px
 }
 .start:hover { filter: brightness(1.12); }
 .disclaimer { padding: 0 32px 11px; font-size: 9.5px; color: #3d4750; letter-spacing: 0.05em; }
+.modeblurb { flex: 1; min-width: 0; font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; line-height: 1.45; }
+@media (max-width: 1100px) { .modeblurb { display: none; } }
 .disclaimer.centered { text-align: center; padding: 12px 0 0; }
 
 @media (max-width: 1100px) {
@@ -171,6 +173,12 @@ h2 { font-size: 25px; font-weight: 600; letter-spacing: -0.01em; margin-top: 7px
   background: rgba(16, 21, 27, 0.75); border: 1px solid var(--border); padding: 10px 14px;
 }
 .hud-obj-text { font-size: 12px; color: var(--text); letter-spacing: 0.08em; margin-top: 6px; line-height: 1.5; white-space: pre-line; }
+.hud-steps { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 7px; display: flex; flex-direction: column; gap: 4px; }
+.hud-step { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; color: var(--muted); }
+.hud-step .mark { display: inline-block; width: 16px; }
+.hud-step.now { color: var(--accent); }
+.hud-step.done { color: #3FD68C; }
+.hud-step.done .mark { color: #3FD68C; }
 
 .hud-top-centre { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .hud-race { background: rgba(16, 21, 27, 0.75); border: 1px solid var(--border); padding: 8px 22px; }

@@ -8,7 +8,7 @@ export function ControlsCard({ fading }: { fading: boolean }) {
     ['F', 'ABILITY'],
     ['TAB', 'CAMERA'],
     ['R', 'RESTART'],
-    ['H', 'THIS CARD'],
+    ['H', 'CARD ON/OFF'],
     ['ESC', 'MENU'],
   ]
   return (

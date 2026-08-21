@@ -428,16 +428,17 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
 
   let objective: string
   if (sim.cfg.mode === 'free') {
-    objective = `FREE FLIGHT — DEMONSTRATE THE AIRFRAME.\nF · ${sim.def.card.ability.toUpperCase()} · SHIFT · BOOST`
+    objective = 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
   } else if (sim.cfg.mode === 'race') {
     objective = sim.race!.started
-      ? `RING COURSE — ${LAPS} LAPS. FLY THE GLOWING GATE.`
-      : 'RING COURSE — CROSS THE START GATE TO BEGIN.'
+      ? 'FLY THROUGH THE GLOWING ORANGE RING.'
+      : `${LAPS} LAPS OF 8 RINGS — THEY LIGHT UP IN ORDER.\nMISSING A RING COSTS +3 S.`
+  } else if (sim.def.id === 'peregrine') {
+    objective = 'TWO HOSTILE DRONES ON PATROL — SEE RADAR.\nCLOSE IN AND CAPTURE WITH THE NET (F).'
+  } else if (sim.def.id === 'kestrel') {
+    objective = 'TWO HOSTILE DRONES ON PATROL — SEE RADAR.\nSWEEP (F) EACH ONE FROM INSIDE 180 M.'
   } else {
-    objective =
-      sim.def.id === 'peregrine'
-        ? 'TWO HOSTILE CONTACTS ON PATROL.\nCLOSE AND CAPTURE WITH THE NET (F).'
-        : 'TWO HOSTILE CONTACTS ON PATROL.\nCAPTURE NEEDS THE HD-3 PEREGRINE — OBSERVE ONLY.'
+    objective = 'TWO HOSTILE DRONES ON PATROL — SEE RADAR.\nSHADOW EACH ONE — CLOSE WITHIN 90 M.'
   }
 
   let ability: HudData['ability']
@@ -514,6 +515,7 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
     race,
     contacts,
     camLabel: CAM_LABELS[camMode % 3],
+    steps: sim.objectiveSteps(),
   }
 }
 

@@ -259,6 +259,7 @@ const SOLIDS: Box[] = [
   ]),
   ...COAL_PILES,
   { x: -108, y: WHARF_DECK + 2.2, z: TRAIN.z, w: 208, h: 4.4, d: 3.6 }, // the coal train
+  { x: -100, y: 1.1, z: 123, w: 88, h: 2.2, d: 12 }, // the Honeysuckle marina (boats + pontoons)
   ...wallSegments(BREAKWALL, 5),
   ...wallSegments(STOCKTON_BW, 5),
   // facade rows backing the fence lines so a hard lean bonks a wall

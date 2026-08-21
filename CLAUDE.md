@@ -6,7 +6,7 @@ Standing instructions for Claude Code in this repository.
 
 ## What this is
 
-A 3D browser drone game that showcases three drone classes sold by **Nick's Hunter Drones**, a fictional company. The player is the prospective customer. It is a demo stand exhibit for the Hunter Defence Conference, one week out.
+A 3D browser drone game that showcases three drone classes sold by **Hunter Defence Drones**, a fictional company. The player is the prospective customer. It is a demo stand exhibit for the Hunter Defence Conference, one week out.
 
 Design intent lives in `GAME_DESIGN.md`. All drone numbers live in `DRONE_SPECS.md`. Those two files are the source of truth for what the game is. Everything else is implementation.
 
@@ -69,4 +69,4 @@ Multiplayer. Accounts. Monetisation. Progression or unlocks, everything is avail
 
 ## Disclaimer that must stay in the game
 
-Nick's Hunter Drones is fictional and every specification is illustrative. This must remain visible on the drone selection screen.
+Hunter Defence Drones is fictional and every specification is illustrative. This must remain visible on the drone selection screen.

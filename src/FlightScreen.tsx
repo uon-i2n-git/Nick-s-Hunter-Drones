@@ -24,14 +24,15 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
   const [hud, setHud] = useState<HudData | null>(null)
   const [card, setCard] = useState<'show' | 'fading' | 'hidden'>('show')
   const reported = useRef(false)
+  const cardTimers = useRef<number[]>([])
 
+  // the card stays up much longer at launch; H toggles it on/off for good
   useEffect(() => {
-    const t1 = setTimeout(() => setCard('fading'), 6000)
-    const t2 = setTimeout(() => setCard('hidden'), 7200)
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-    }
+    cardTimers.current = [
+      window.setTimeout(() => setCard('fading'), 15000),
+      window.setTimeout(() => setCard('hidden'), 16500),
+    ]
+    return () => cardTimers.current.forEach(clearTimeout)
   }, [])
 
   useEffect(() => {
@@ -44,9 +45,8 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
       if (e.code === 'KeyR') onRestart()
       if (e.code === 'Escape') onExit()
       if (e.code === 'KeyH') {
-        setCard('show')
-        setTimeout(() => setCard('fading'), 5000)
-        setTimeout(() => setCard('hidden'), 6200)
+        cardTimers.current.forEach(clearTimeout) // manual toggle overrides the launch timer
+        setCard((prev) => (prev === 'hidden' ? 'show' : 'hidden'))
       }
     }
     const up = (e: KeyboardEvent) => {
@@ -79,7 +79,7 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
   return (
     <div className="flight-root">
       <Canvas
-        shadows
+        shadows="soft"
         dpr={[1, 1.75]}
         camera={{ fov: 60, near: 0.1, far: 2600, position: [30, 8, 155] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}

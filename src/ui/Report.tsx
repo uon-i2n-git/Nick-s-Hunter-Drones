@@ -85,7 +85,7 @@ export function ReportScreen({ report, onRetry, onHangar }: Props) {
             Main Menu
           </button>
         </div>
-        <div className="disclaimer centered">All specifications are illustrative. Nick's Hunter Drones is fictional.</div>
+        <div className="disclaimer centered">All specifications are illustrative. Hunter Defence Drones is fictional.</div>
       </div>
     </div>
   )
