@@ -163,6 +163,13 @@ function Terrain() {
       else if (northEstate && x > -20 && x < 158) c.set('#6a5a3e').offsetHSL(0, 0, (rnd() - 0.5) * 0.06) // vineyard soil
       else if (northEstate && x > -150 && x <= -20) c.set('#7d9556').offsetHSL(0, 0, (rnd() - 0.5) * 0.05) // resort lawns
       else if (northEstate && x > -320 && x <= -150) c.set('#5f8f42').offsetHSL(0, (rnd() - 0.5) * 0.04, (rnd() - 0.5) * 0.05) // fairways
+      else if (h > 3.2 && ((x < -330 && z < 240) || z < -520)) {
+        // farmland quilt beyond the works and behind the estate: a patchwork
+        // of pasture, stubble, ploughed soil and crop, keyed to a paddock grid
+        const FARM = ['#6b8a4a', '#b0a05f', '#6a5a3e', '#7d9556', '#5d7a44']
+        const hsel = (((Math.floor(x / 62) * 73856093) ^ (Math.floor(z / 54) * 19349663)) >>> 0) % FARM.length
+        c.set(FARM[hsel]).offsetHSL(0, 0, (rnd() - 0.5) * 0.05)
+      }
       else c.copy(rnd() < 0.75 ? GRASS : GRASS2).offsetHSL(0, (rnd() - 0.5) * 0.05, (rnd() - 0.5) * 0.06)
       colors[i * 3] = c.r
       colors[i * 3 + 1] = c.g
@@ -1119,6 +1126,137 @@ function NorthEstate({ gusty }: { gusty: boolean }) {
   )
 }
 
+// the countryside wrapping the whole scene: western vineyards + farms with
+// hedgerows, sheep and farmhouses; suburban estates with streets north-east
+// of the existing suburb; and rooftops spilling over the hills behind the
+// cathedral. All far beyond the geofence — pure backdrop.
+function Countryside() {
+  const meshes = useMemo(() => {
+    const rnd = mulberry32(97)
+    const box = new THREE.BoxGeometry(1, 1, 1)
+
+    // more vine blocks on the winery's western side
+    const vineItems: Inst[] = []
+    for (const block of [
+      { x0: -470, x1: -350, z0: -336, z1: -420 },
+      { x0: -500, x1: -364, z0: -434, z1: -500 },
+      { x0: -560, x1: -430, z0: -280, z1: -330 },
+    ]) {
+      for (let z = block.z0; z > block.z1; z -= 5.5) {
+        const gy = terrainHeight((block.x0 + block.x1) / 2, z)
+        const len = block.x1 - block.x0 - rnd() * 20
+        vineItems.push({
+          m: mat4(block.x0 + len / 2 + rnd() * 8, gy + 0.55, z, 0, len, 1.0, 0.7),
+          c: new THREE.Color(rnd() < 0.5 ? '#3f5c33' : '#48663a'),
+        })
+      }
+    }
+
+    // hedgerows along the paddock grid lines
+    const hedgeItems: Inst[] = []
+    const hedge = (x: number, z: number, len: number, alongX: boolean) => {
+      const gy = terrainHeight(x, z)
+      hedgeItems.push({
+        m: mat4(x, gy + 1, z, 0, alongX ? len : 1.6, 2, alongX ? 1.6 : len),
+        c: new THREE.Color(rnd() < 0.5 ? '#3c5230' : '#465e36'),
+      })
+    }
+    for (let i = 0; i < 15; i++) hedge(-620 + rnd() * 260, -80 + Math.floor(rnd() * 9) * 54 - 460, 40 + rnd() * 50, true)
+    for (let i = 0; i < 10; i++) hedge(-680 + Math.floor(rnd() * 6) * 62, -540 + rnd() * 380, 36 + rnd() * 44, false)
+    for (let i = 0; i < 8; i++) hedge(-120 + rnd() * 400, -560 - rnd() * 100, 44 + rnd() * 50, true)
+
+    // farmhouses with sheds dotted through the paddocks
+    const houseWallItems: Inst[] = []
+    const houseRoofItems: Inst[] = []
+    const shedItems: Inst[] = []
+    const wallCols = ['#e2ded2', '#cfc9ba', '#c9bfa8', '#b8c0c4', '#e8e4da']
+    const roofCols = ['#4a4e52', '#8a4a3b', '#5d6468', '#3c4046']
+    const house = (x: number, z: number, ry: number) => {
+      const gy = terrainHeight(x, z)
+      houseWallItems.push({ m: mat4(x, gy + 1.6, z, ry), c: new THREE.Color(wallCols[Math.floor(rnd() * wallCols.length)]) })
+      houseRoofItems.push({ m: mat4(x, gy + 3.9, z, ry + Math.PI / 4), c: new THREE.Color(roofCols[Math.floor(rnd() * roofCols.length)]) })
+    }
+    const FARMHOUSES: Array<[number, number]> = [
+      [-420, -240], [-540, -370], [-600, -180], [-480, -80], [-640, 40],
+      [-560, 160], [-200, -580], [80, -600], [260, -570],
+    ]
+    for (const [fx, fz] of FARMHOUSES) {
+      house(fx + (rnd() - 0.5) * 10, fz + (rnd() - 0.5) * 10, rnd())
+      const gy = terrainHeight(fx + 14, fz + 8)
+      shedItems.push({ m: mat4(fx + 14, gy + 2.2, fz + 8, rnd() * 0.3, 10 + rnd() * 6, 4.4, 7 + rnd() * 4), c: new THREE.Color('#8d8578') })
+    }
+
+    // sheep in two meadows
+    const sheepItems: Inst[] = []
+    const headItems: Inst[] = []
+    const flock = (cx: number, cz: number, n: number) => {
+      for (let i = 0; i < n; i++) {
+        const x = cx + (rnd() - 0.5) * 70
+        const z = cz + (rnd() - 0.5) * 55
+        const gy = terrainHeight(x, z)
+        const ry = rnd() * Math.PI * 2
+        sheepItems.push({ m: mat4(x, gy + 0.35, z, ry, 0.95, 0.6, 0.55) })
+        headItems.push({ m: mat4(x - Math.sin(ry) * 0.55, gy + 0.5, z - Math.cos(ry) * 0.55, ry, 0.3, 0.3, 0.35) })
+      }
+    }
+    flock(-520, -140, 26)
+    flock(-450, -450, 20)
+    flock(150, -590, 22)
+
+    // north-east suburban estate: street grid + houses off the existing suburb
+    const roadItems: Inst[] = []
+    const road = (x: number, z: number, len: number, alongX: boolean) => {
+      const gy = terrainHeight(x, z)
+      roadItems.push({ m: mat4(x, gy + 0.12, z, 0, alongX ? len : 6, 0.14, alongX ? 6 : len) })
+    }
+    for (const rz of [-400, -448, -496]) {
+      for (let rx = 200; rx <= 440; rx += 60) road(rx, rz, 62, true)
+    }
+    for (const rx of [210, 320, 430]) {
+      for (let rz = -392; rz >= -504; rz -= 56) road(rx, rz, 58, false)
+    }
+    for (let gz = 0; gz < 4; gz++) {
+      for (let gx = 0; gx < 10; gx++) {
+        if (rnd() < 0.16) continue
+        const x = 192 + gx * 26 + (rnd() - 0.5) * 6
+        const z = -412 - gz * 28 - (rnd() - 0.5) * 6
+        house(x, z, (rnd() - 0.5) * 0.25 + (gz % 2 ? Math.PI / 2 : 0))
+      }
+    }
+
+    // rooftops spilling over the hills behind the cathedral
+    for (const rz of [470, 530, 590]) {
+      for (let rx = -60; rx <= 420; rx += 70) road(rx, rz, 72, true)
+    }
+    for (let gz = 0; gz < 3; gz++) {
+      for (let gx = 0; gx < 14; gx++) {
+        if (rnd() < 0.2) continue
+        const x = -70 + gx * 36 + (rnd() - 0.5) * 12
+        const z = 482 + gz * 60 + (rnd() - 0.5) * 22
+        house(x, z, rnd())
+      }
+    }
+
+    return [
+      makeInstanced(box, new THREE.MeshStandardMaterial({ roughness: 1 }), vineItems),
+      makeInstanced(box, new THREE.MeshStandardMaterial({ roughness: 1 }), hedgeItems),
+      makeInstanced(new THREE.BoxGeometry(8.5, 3.2, 7), new THREE.MeshStandardMaterial({ roughness: 0.95 }), houseWallItems),
+      makeInstanced(new THREE.ConeGeometry(6, 2.4, 4), new THREE.MeshStandardMaterial({ roughness: 0.95, flatShading: true }), houseRoofItems),
+      makeInstanced(box, new THREE.MeshStandardMaterial({ roughness: 0.9 }), shedItems),
+      makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#e8e6df', roughness: 1 }), sheepItems),
+      makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#2e2a26', roughness: 1 }), headItems),
+      makeInstanced(box, new THREE.MeshStandardMaterial({ color: '#3a3f43', roughness: 0.95 }), roadItems),
+    ]
+  }, [])
+  return (
+    <group>
+      {meshes.map((m, i) => (
+        <primitive key={i} object={m} />
+      ))}
+    </group>
+  )
+}
+
 // small-boat marina tucked against the Honeysuckle boardwalk
 function Marina() {
   const { pontoons, hulls, cabins, masts } = useMemo(() => {
@@ -1631,6 +1769,7 @@ export function Harbour({ weather }: { weather: WeatherDef }) {
       <Foreshore />
       <NorthSuburb />
       <NorthEstate gusty={gusty} />
+      <Countryside />
       <OuterRises />
       <FarWestIndustry />
       <Dynamics weather={weather} />
