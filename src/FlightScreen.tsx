@@ -79,7 +79,7 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
   return (
     <div className="flight-root">
       <Canvas
-        shadows
+        shadows="soft"
         dpr={[1, 1.75]}
         camera={{ fov: 60, near: 0.1, far: 2600, position: [30, 8, 155] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}

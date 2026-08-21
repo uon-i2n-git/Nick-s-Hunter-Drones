@@ -1,4 +1,4 @@
-# Game Design: Nick's Hunter Drones Flight Ops
+# Game Design: Hunter Defence Drones Flight Ops
 
 **Scope: a stand exhibit for the Hunter Defence Conference.** This document describes exactly what gets built, and nothing beyond it. If something is not in here, it is not in the game.
 
@@ -6,7 +6,7 @@
 
 ## 1. The pitch
 
-You are the customer. Nick's Hunter Drones hands you three very different aircraft and a harbour to fly them in. Within a couple of minutes you have felt the trade-offs for yourself and you know which one you would buy.
+You are the customer. Hunter Defence Drones hands you three very different aircraft and a harbour to fly them in. Within a couple of minutes you have felt the trade-offs for yourself and you know which one you would buy.
 
 ---
 
@@ -116,7 +116,7 @@ Selected drone rotating slowly in 3D on a dark studio backdrop with a soft groun
 
 Below that: mode select, weather select, START.
 
-Footer, small: *Nick's Hunter Drones is a fictional company. All specifications are illustrative.*
+Footer, small: *Hunter Defence Drones is a fictional company. All specifications are illustrative.*
 
 **Visual language:** dark, technical, defence-industry. Near-black background `#07090C`, panels `#10151B`, borders `#1E2731`, text `#C8D1DA`, muted `#6B7885`, accent `#FF7A1A`. Monospace for numbers and labels, clean sans for headings, uppercase wide-tracked labels, thin 1px borders. No rounded bubbles, no drop shadows, no gradients beyond a subtle vignette. It should read as a product configurator, not a video game menu.
 

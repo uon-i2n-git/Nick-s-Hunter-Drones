@@ -48,6 +48,8 @@ function Sky({ weather }: { weather: WeatherDef }) {
     () => ({
       uTop: { value: new THREE.Color(weather.skyTop) },
       uBottom: { value: new THREE.Color(weather.skyBottom) },
+      uSunDir: { value: new THREE.Vector3(0.45, 0.6, 0.35).normalize() },
+      uSun: { value: weather.sunIntensity },
     }),
     [weather],
   )
@@ -58,11 +60,75 @@ function Sky({ weather }: { weather: WeatherDef }) {
         side={THREE.BackSide}
         depthWrite={false}
         uniforms={uniforms}
-        vertexShader={`varying float vY; void main(){ vY = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);}`}
-        fragmentShader={`uniform vec3 uTop; uniform vec3 uBottom; varying float vY;
-          void main(){ float f = smoothstep(-0.05, 0.5, vY); gl_FragColor = vec4(mix(uBottom, uTop, f), 1.0); }`}
+        vertexShader={`varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);}`}
+        fragmentShader={`uniform vec3 uTop; uniform vec3 uBottom; uniform vec3 uSunDir; uniform float uSun; varying vec3 vDir;
+          void main(){
+            float f = smoothstep(-0.05, 0.5, vDir.y);
+            vec3 col = mix(uBottom, uTop, f);
+            float s = dot(normalize(vDir), uSunDir);
+            // warm glow around the sun, hard disc at its centre
+            col += vec3(1.0, 0.85, 0.6) * pow(max(s, 0.0), 30.0) * 0.28 * uSun;
+            col += vec3(1.0, 0.96, 0.86) * smoothstep(0.9993, 0.9997, s) * 1.6 * uSun;
+            gl_FragColor = vec4(col, 1.0);
+          }`}
       />
     </mesh>
+  )
+}
+
+// low-poly cumulus drifting with the prevailing wind
+function Clouds({ weather }: { weather: WeatherDef }) {
+  const ref = useRef<THREE.InstancedMesh>(null)
+  const puffs = useMemo(() => {
+    const rnd = mulberry32(83)
+    const out: Array<{ x: number; y: number; z: number; sx: number; sy: number; sz: number; ry: number }> = []
+    for (let i = 0; i < 12; i++) {
+      const cx = -650 + rnd() * 1300
+      const cz = -650 + rnd() * 1300
+      const cy = 190 + rnd() * 130
+      const n = 2 + Math.floor(rnd() * 2)
+      for (let p = 0; p < n; p++) {
+        out.push({
+          x: cx + (rnd() - 0.5) * 46, y: cy + (rnd() - 0.5) * 8, z: cz + (rnd() - 0.5) * 26,
+          sx: 26 + rnd() * 34, sy: 7 + rnd() * 6, sz: 18 + rnd() * 18, ry: rnd() * 3,
+        })
+      }
+    }
+    return out
+  }, [])
+  useFrame((st) => {
+    const im = ref.current
+    if (!im) return
+    const t = st.clock.elapsedTime
+    const cam = st.camera.position
+    const drift = weather.whitecaps > 0 ? 14 : 4 // m/s, roughly with the wind
+    const m = new THREE.Matrix4()
+    puffs.forEach((p, i) => {
+      let x = p.x + drift * t * 0.55
+      let z = p.z - drift * t * 0.83
+      // wrap around the camera so the sky never empties out
+      x = ((((x - cam.x + 800) % 1600) + 1600) % 1600) - 800 + cam.x
+      z = ((((z - cam.z + 800) % 1600) + 1600) % 1600) - 800 + cam.z
+      m.compose(
+        new THREE.Vector3(x, p.y, z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, p.ry, 0)),
+        new THREE.Vector3(p.sx, p.sy, p.sz),
+      )
+      im.setMatrixAt(i, m)
+    })
+    im.instanceMatrix.needsUpdate = true
+  })
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, puffs.length]} frustumCulled={false}>
+      <icosahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial
+        color={weather.whitecaps > 0 ? '#aeb6bf' : '#f2f4f6'}
+        transparent
+        opacity={0.92}
+        roughness={1}
+        flatShading
+      />
+    </instancedMesh>
   )
 }
 
@@ -508,13 +574,15 @@ function windowsTexture(): THREE.CanvasTexture {
 // channel gorge, the CBD rising south-east, mid-rise blocks north-east,
 // and tall faces on the basin's east corner staring straight down the dock
 function City({ gusty }: { gusty: boolean }) {
-  const { blocks, glass, windows, foreshore, awnings } = useMemo(() => {
+  const { blocks, glass, windows, foreshore, awnings, masts, mastTips } = useMemo(() => {
     const rnd = mulberry32(31)
     const concrete: Inst[] = []
     const glassItems: Inst[] = []
     const windowItems: Inst[] = []
     const fore: Inst[] = []
     const awn: Inst[] = []
+    const mastItems: Inst[] = []
+    const tipItems: Inst[] = []
     const palette = ['#8d8579', '#9aa0a2', '#7b7268', '#a39d8b', '#6f6d6a']
     const warm = ['#a3684a', '#b98a5f', '#8a5a44', '#c2a58a', '#96705a', '#c7b18e']
 
@@ -524,7 +592,23 @@ function City({ gusty }: { gusty: boolean }) {
       const item = { m: mat4(x, gy + h / 2, z, (rnd() - 0.5) * 0.1, w, h, d) }
       if (isGlass) glassItems.push(item)
       else concrete.push({ ...item, c: new THREE.Color(palette[Math.floor(rnd() * palette.length)]) })
+      // lit faces on both street sides, not just the one toward the water
       windowItems.push({ m: mat4(x, gy + h / 2, z + faceDir * (d / 2 + 0.15), faceDir > 0 ? 0 : Math.PI, w * 0.92, h * 0.88, 1) })
+      windowItems.push({ m: mat4(x, gy + h / 2, z - faceDir * (d / 2 + 0.15), faceDir > 0 ? Math.PI : 0, w * 0.92, h * 0.88, 1) })
+      // rooftop plant on the mid-rises, comms masts with beacons on the towers
+      if (h > 18) {
+        const n = 1 + Math.floor(rnd() * 2)
+        for (let r = 0; r < n; r++) {
+          awn.push({ m: mat4(x + (rnd() - 0.5) * w * 0.45, gy + h + 1, z + (rnd() - 0.5) * d * 0.45, rnd(), 3 + rnd() * 5, 2, 2.5 + rnd() * 3) })
+        }
+      }
+      if (h > 46) {
+        const mh = 6 + rnd() * 8
+        const mx = x + (rnd() - 0.5) * w * 0.3
+        const mz = z + (rnd() - 0.5) * d * 0.3
+        mastItems.push({ m: mat4(mx, gy + h + mh / 2, mz, 0, 1, mh, 1) })
+        tipItems.push({ m: mat4(mx, gy + h + mh + 0.4, mz) })
+      }
     }
     const addFrontage = (x: number, z: number, w: number, h: number, d: number, faceDir: number, withAwning: boolean) => {
       const gy = terrainHeight(x, z)
@@ -582,6 +666,15 @@ function City({ gusty }: { gusty: boolean }) {
       if (o.glass) glassItems.push(item)
       else concrete.push({ ...item, c: new THREE.Color(palette[Math.floor(rnd() * palette.length)]) })
       windowItems.push({ m: mat4(o.x, o.y, o.z - o.d / 2 - 0.15, Math.PI, o.w * 0.92, o.h * 0.85, 1) })
+      const top = o.y + o.h / 2
+      awn.push({ m: mat4(o.x + (rnd() - 0.5) * o.w * 0.4, top + 1, o.z + (rnd() - 0.5) * o.d * 0.35, rnd(), 4 + rnd() * 4, 2, 3 + rnd() * 2) })
+      // street-level entrance canopy on the face toward the water
+      awn.push({ m: mat4(o.x, o.y - o.h / 2 + 3.4, o.z - o.d / 2 - 1.1, 0, o.w * 0.55, 0.35, 2.4) })
+      if (o.h > 40) {
+        const mh = 5 + rnd() * 6
+        mastItems.push({ m: mat4(o.x, top + mh / 2, o.z, 0, 1, mh, 1) })
+        tipItems.push({ m: mat4(o.x, top + mh + 0.4, o.z) })
+      }
     }
 
     const boxGeo = new THREE.BoxGeometry(1, 1, 1)
@@ -601,7 +694,13 @@ function City({ gusty }: { gusty: boolean }) {
       windowItems,
     )
     windows.renderOrder = 2
-    return { blocks, glass, windows, foreshore: foreshoreMesh, awnings }
+    const masts = makeInstanced(new THREE.CylinderGeometry(0.14, 0.22, 1, 6), new THREE.MeshStandardMaterial({ color: '#4a5158', roughness: 0.7 }), mastItems)
+    const mastTips = makeInstanced(
+      new THREE.SphereGeometry(0.45, 6, 5),
+      new THREE.MeshStandardMaterial({ color: '#ff5540', emissive: '#ff4030', emissiveIntensity: gusty ? 3 : 1.6 }),
+      tipItems,
+    )
+    return { blocks, glass, windows, foreshore: foreshoreMesh, awnings, masts, mastTips }
   }, [gusty])
   return (
     <group>
@@ -610,6 +709,8 @@ function City({ gusty }: { gusty: boolean }) {
       <primitive object={windows} name="cityWindows" />
       <primitive object={foreshore} />
       <primitive object={awnings} name="cityAwnings" />
+      <primitive object={masts} />
+      <primitive object={mastTips} />
     </group>
   )
 }
@@ -828,6 +929,87 @@ function PortProps() {
       <primitive object={silos} />
       <primitive object={sheds} />
       <primitive object={piles} />
+    </group>
+  )
+}
+
+// small-boat marina tucked against the Honeysuckle boardwalk
+function Marina() {
+  const { pontoons, hulls, cabins, masts } = useMemo(() => {
+    const rnd = mulberry32(71)
+    const pontoonItems: Inst[] = [
+      { m: mat4(-100, 0.55, 128, 0, 84, 0.5, 2.4) }, // main walkway
+    ]
+    const hullItems: Inst[] = []
+    const cabinItems: Inst[] = []
+    const mastItems: Inst[] = []
+    const hullCols = ['#f0efe9', '#f0efe9', '#e8e6df', '#28455c', '#7a2f2a', '#f0efe9']
+    for (let i = 0; i < 10; i++) {
+      const fx = -138 + i * 8.6
+      pontoonItems.push({ m: mat4(fx, 0.5, 122.5, 0, 1.4, 0.4, 9.5) }) // finger
+      if (rnd() < 0.82) {
+        const bx = fx + 4.1
+        const ry = (rnd() - 0.5) * 0.06
+        const sail = rnd() < 0.65
+        hullItems.push({ m: mat4(bx, 0.7, 121.5 + (rnd() - 0.5) * 1.5, ry, 2.3, 1.1, 7.2), c: new THREE.Color(hullCols[Math.floor(rnd() * hullCols.length)]) })
+        cabinItems.push({ m: mat4(bx, 1.5, 122.3, ry, 1.7, 0.8, 2.6) })
+        if (sail) mastItems.push({ m: mat4(bx, 5.6, 121, 0, 1, 8.6, 1) })
+      }
+    }
+    return {
+      pontoons: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: '#9a938a', roughness: 0.9 }), pontoonItems),
+      hulls: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.6 }), hullItems),
+      cabins: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: '#d8d5cc', roughness: 0.7 }), cabinItems),
+      masts: makeInstanced(new THREE.CylinderGeometry(0.06, 0.09, 1, 5), new THREE.MeshStandardMaterial({ color: '#e8e6df', roughness: 0.5 }), mastItems),
+    }
+  }, [])
+  return (
+    <group>
+      <primitive object={pontoons} />
+      <primitive object={hulls} />
+      <primitive object={cabins} />
+      <primitive object={masts} />
+    </group>
+  )
+}
+
+// parked cars along the foreshore drive, the apron road and the city grid
+function Cars() {
+  const { bodies, cabs } = useMemo(() => {
+    const rnd = mulberry32(79)
+    const bodyItems: Inst[] = []
+    const cabItems: Inst[] = []
+    const cols = ['#c9cdd2', '#8a9096', '#3c4046', '#7a2f2a', '#28455c', '#b8b4a6', '#4e5d54']
+    const park = (x: number, z: number, ry: number, gy: number) => {
+      bodyItems.push({ m: mat4(x, gy + 0.65, z, ry + (rnd() - 0.5) * 0.04, 4.3, 1.2, 1.9), c: new THREE.Color(cols[Math.floor(rnd() * cols.length)]) })
+      cabItems.push({ m: mat4(x - Math.cos(ry) * 0.4, gy + 1.5, z + Math.sin(ry) * 0.4, ry, 2.2, 0.75, 1.7) })
+    }
+    // foreshore drive, south shore
+    for (let x = -272; x <= 136; x += 13) {
+      if (rnd() < 0.45) continue
+      park(x, 163.5, 0, terrainHeight(x, 158) + 0.05)
+    }
+    // behind the apron
+    for (let x = -216; x <= 128; x += 12) {
+      if (rnd() < 0.55) continue
+      park(x, -180.5, 0, WHARF_DECK)
+    }
+    // city cross streets on the rise
+    for (const cz of [150, 210]) {
+      for (let x = 180; x <= 396; x += 15) {
+        if (rnd() < 0.6) continue
+        park(x, cz + 5.5, 0, terrainHeight(x, cz) + 0.32)
+      }
+    }
+    return {
+      bodies: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.3 }), bodyItems),
+      cabs: makeInstanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: '#20262c', roughness: 0.3, metalness: 0.2 }), cabItems),
+    }
+  }, [])
+  return (
+    <group>
+      <primitive object={bodies} />
+      <primitive object={cabs} />
     </group>
   )
 }
@@ -1223,6 +1405,7 @@ export function Harbour({ weather }: { weather: WeatherDef }) {
 
       <Terrain />
       <Shoreline />
+      <Clouds weather={weather} />
 
       {WHARVES.map((wh, i) => (
         <group key={i}>
@@ -1244,6 +1427,8 @@ export function Harbour({ weather }: { weather: WeatherDef }) {
       ))}
       <PortProps />
       <CoalTrain />
+      <Marina />
+      <Cars />
       <Buoys />
 
       <Breakwater bw={BREAKWALL} color="#6e6a60" />
