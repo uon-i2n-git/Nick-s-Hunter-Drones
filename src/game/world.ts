@@ -55,7 +55,7 @@ export function terrainHeight(x: number, z: number): number {
 // ---- port wharves (playable, unchanged race geometry) ----------------------
 export const WHARVES: Box[] = [
   { x: 0, y: WHARF_DECK / 2, z: 135, w: 300, h: WHARF_DECK, d: 18 }, // Honeysuckle boardwalk on the south shore
-  { x: -215, y: WHARF_DECK / 2, z: 10, w: 100, h: WHARF_DECK, d: 110 }, // west basin arm
+  { x: -240, y: WHARF_DECK / 2, z: 10, w: 150, h: WHARF_DECK, d: 110 }, // west pier, joined to the western bank
   { x: -45, y: WHARF_DECK / 2, z: -155, w: 390, h: WHARF_DECK, d: 54 }, // north coal apron, x -240..150, z -128..-182
 ]
 export const NORTH_APRON = WHARVES[2]

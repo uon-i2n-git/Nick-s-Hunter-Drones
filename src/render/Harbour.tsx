@@ -193,9 +193,13 @@ function Shoreline() {
     // basin edges (the boardwalk covers the south x -150..150, the apron the north)
     addRun(-310, 140, -152, 140, 5, false) // south-west foreshore edge
     addRun(-150, 143, 150, 143, 6, false) // along the Honeysuckle boardwalk front
-    addRun(-310, -20, -310, 138, 5, true) // west end of the basin (south half)
+    addRun(-310, 72, -310, 138, 3, true) // west bank, south of the pier
+    addRun(-310, -50, -310, -126, 3, false) // west bank, north of the pier
     addRun(-310, -126, -240, -126, 4, false) // the sandy beach shoreline
-    addRun(-310, -126, -310, -24, 3, false)
+    // waterline foam around the west pier's three open faces
+    addRun(-164, -44, -164, 64, 3, false)
+    addRun(-312, 66, -166, 66, 4, false)
+    addRun(-312, -44, -166, -44, 4, false)
     addRun(152, -126, 152, -32, 4, false) // basin east wall, north of the gorge
     addRun(152, 70, 152, 140, 3, false) // basin east wall, south of the gorge
     // channel gorge banks
@@ -807,6 +811,7 @@ function Foreshore() {
     }
     roadItems.push({ m: mat4(-80, 3.06, -186, 0, 450, 0.14, 8) }) // behind the apron
     roadItems.push({ m: mat4(-80, 3.06, -252, 0, 450, 0.14, 8) }) // through the back flats
+    roadItems.push({ m: mat4(-256, 3.08, 10, 0, 116, 0.14, 7) }) // access road onto the west pier
     return {
       poles: makeInstanced(new THREE.CylinderGeometry(0.09, 0.12, 5.2, 6), new THREE.MeshStandardMaterial({ color: '#454c53' }), poleItems),
       lamps: makeInstanced(new THREE.SphereGeometry(0.22, 6, 5), new THREE.MeshStandardMaterial({ color: '#fff2c0', emissive: '#ffdf90', emissiveIntensity: 1.6 }), lampItems),
