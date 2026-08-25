@@ -704,6 +704,10 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
     camLabel: CAM_LABELS[camMode % 3],
     steps: sim.objectiveSteps(),
     intel,
+    altAsl: s.pos.y,
+    flightTime: sim.t,
+    distKm: sim.distance / 1000,
+    homeDist: Math.hypot(s.pos.x - SPAWN.x, s.pos.z - SPAWN.z),
   }
 }
 

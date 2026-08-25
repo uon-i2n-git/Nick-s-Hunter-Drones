@@ -52,6 +52,10 @@ export interface HudData {
   steps: Array<{ label: string; state: 'done' | 'now' | 'todo' }>
   /** kestrel: active sensor tags with live ranges */
   intel: string[] | null
+  altAsl: number
+  flightTime: number
+  distKm: number
+  homeDist: number
 }
 
 const R2D = 180 / Math.PI
@@ -113,7 +117,7 @@ export function Hud({ d, controlsOn, onToggleControls }: { d: HudData; controlsO
         </div>
       </div>
 
-      {/* bottom left: flight numbers */}
+      {/* bottom left: flight numbers + secondary telemetry row */}
       <div className="hud-flight">
         <div className="hud-num-block">
           <div className="hud-num">{Math.max(0, d.agl).toFixed(0)}<u>m</u></div>
@@ -128,6 +132,14 @@ export function Hud({ d, controlsOn, onToggleControls }: { d: HudData; controlsO
             {d.vspeed > 0 ? '+' : ''}{d.vspeed.toFixed(1)}<u>m/s</u>
           </div>
           <div className="hud-label">V/S</div>
+        </div>
+        <div className="hud-minirow">
+          <div className="hud-mini"><b>{fmtClock(d.flightTime)}</b>FLT TIME</div>
+          <div className="hud-mini"><b>{(((d.heading * R2D) % 360) + 360) % 360 < 0.5 ? '000' : String(Math.round((((d.heading * R2D) % 360) + 360) % 360)).padStart(3, '0')}°</b>HDG</div>
+          <div className="hud-mini"><b>{d.altAsl.toFixed(0)} M</b>ALT ASL</div>
+          <div className="hud-mini"><b>{d.distKm.toFixed(2)} KM</b>DIST FLOWN</div>
+          <div className="hud-mini"><b>{d.homeDist.toFixed(0)} M</b>HOME</div>
+          <div className="hud-mini"><b>{d.windSpeed < 0.5 ? 'CALM' : d.windSpeed.toFixed(1) + ' M/S'}</b>WIND</div>
         </div>
       </div>
 
