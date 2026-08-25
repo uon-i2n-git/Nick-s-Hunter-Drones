@@ -188,10 +188,12 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
     <div className="hangar">
       <header>
         <div className="brand">
+          <span className="brandmark" />
           <b>Hunter Defence Drones</b>
           <span>Flight Ops · Fleet Selection</span>
         </div>
         <div className="sysline">
+          <span className="livechip"><i className="livedot" />Live Demo</span>
           Newcastle Harbour · <i>Systems Nominal</i>
         </div>
       </header>
@@ -248,9 +250,12 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
             Launch
           </button>
         </div>
-        <div className="disclaimer">
-          Hunter Defence Drones is a fictional company. All specifications are illustrative and are not performance
-          guarantees.
+        <div className="disclaimer split">
+          <span>
+            Hunter Defence Drones is a fictional company. All specifications are illustrative and are not performance
+            guarantees.
+          </span>
+          <span className="keyhint">← → aircraft · ENTER launch</span>
         </div>
       </footer>
     </div>

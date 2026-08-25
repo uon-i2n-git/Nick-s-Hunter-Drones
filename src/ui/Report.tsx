@@ -30,6 +30,9 @@ export function ReportScreen({ report, onRetry, onHangar }: Props) {
           <div>
             <div className="tag">Capability Report</div>
             <h2>{def.model}</h2>
+            <div className="report-price">
+              {def.cls} · ${def.priceAUD.toLocaleString('en-AU')} <small>AUD</small>
+            </div>
             <div className="report-sub">
               {MODE_NAME[report.mode]} · {WX_NAME[report.weather]} · {report.reason}
             </div>
@@ -76,14 +79,12 @@ export function ReportScreen({ report, onRetry, onHangar }: Props) {
         <hr />
         <div className="report-buttons">
           <button className="start" onClick={onRetry}>
-            Retry (R)
+            Fly Again (R)
           </button>
           <button className="select on" onClick={onHangar}>
-            Change Drone
+            Try Another Aircraft
           </button>
-          <button className="select on" onClick={onHangar}>
-            Main Menu
-          </button>
+          <div className="report-stand">Compare the full fleet at the Hunter Defence stand</div>
         </div>
         <div className="disclaimer centered">All specifications are illustrative. Hunter Defence Drones is fictional.</div>
       </div>
