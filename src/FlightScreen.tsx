@@ -13,8 +13,9 @@ interface Props {
 }
 
 const GAME_CODES = new Set([
-  'Space', 'ControlLeft', 'ControlRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD',
-  'KeyQ', 'KeyE', 'KeyC', 'ShiftLeft', 'ShiftRight', 'Tab', 'KeyF', 'KeyR', 'KeyH', 'Escape',
+  'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyC', 'KeyX',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  'ShiftLeft', 'ShiftRight', 'Tab', 'KeyF', 'KeyR', 'KeyH', 'Escape',
 ])
 
 export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
@@ -29,8 +30,8 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
   // the card stays up much longer at launch; H toggles it on/off for good
   useEffect(() => {
     cardTimers.current = [
-      window.setTimeout(() => setCard('fading'), 15000),
-      window.setTimeout(() => setCard('hidden'), 16500),
+      window.setTimeout(() => setCard('fading'), 45000),
+      window.setTimeout(() => setCard('hidden'), 46500),
     ]
     return () => cardTimers.current.forEach(clearTimeout)
   }, [])

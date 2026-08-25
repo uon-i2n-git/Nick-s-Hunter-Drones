@@ -708,6 +708,7 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
     flightTime: sim.t,
     distKm: sim.distance / 1000,
     homeDist: Math.hypot(s.pos.x - SPAWN.x, s.pos.z - SPAWN.z),
+    coach: sim.coachHint(),
   }
 }
 
