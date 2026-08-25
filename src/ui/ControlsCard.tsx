@@ -1,9 +1,11 @@
 export function ControlsCard({ fading }: { fading: boolean }) {
   const rows: Array<[string, string]> = [
     ['SPACE', 'CLIMB'],
-    ['CTRL / C', 'DESCEND'],
-    ['W A S D', 'TRANSLATE'],
-    ['Q / E', 'YAW'],
+    ['C', 'DESCEND'],
+    ['W / ↑', 'FORWARD'],
+    ['S / ↓', 'BACK'],
+    ['A D', 'SIDESTEP'],
+    ['Q E / ← →', 'TURN'],
     ['SHIFT', 'BOOST'],
     ['F', 'ABILITY'],
     ['TAB', 'CAMERA'],

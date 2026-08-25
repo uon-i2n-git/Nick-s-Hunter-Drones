@@ -56,6 +56,8 @@ export interface HudData {
   flightTime: number
   distKm: number
   homeDist: number
+  /** first-flight coaching prompt; '' once the player is flying */
+  coach: string
 }
 
 const R2D = 180 / Math.PI
@@ -93,6 +95,7 @@ export function Hud({ d, controlsOn, onToggleControls }: { d: HudData; controlsO
             </div>
           </div>
         )}
+        {d.coach && !d.tumbling && <div className="hud-coach">{d.coach}</div>}
         {d.wrongWay && <div className="hud-warn-big">WRONG WAY — GATE NOT COUNTED</div>}
         {d.message && <div className="hud-msg">{d.message}</div>}
         {d.tumbling && <div className="hud-warn-big">AIRFRAME LIMIT EXCEEDED</div>}

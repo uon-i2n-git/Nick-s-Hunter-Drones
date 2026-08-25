@@ -198,6 +198,11 @@ h2 { font-size: 25px; font-weight: 600; letter-spacing: -0.01em; margin-top: 7px
 .hud-race-time { font-size: 30px; font-weight: 500; letter-spacing: 0.02em; }
 .hud-race-sub { font-size: 10.5px; letter-spacing: 0.16em; color: var(--accent); margin-top: 2px; }
 .hud-race-sub.muted { color: var(--muted); }
+.hud-coach {
+  font-size: 17px; letter-spacing: 0.18em; color: #07090c; font-weight: 700;
+  background: var(--accent); padding: 9px 22px; font-family: var(--mono);
+  box-shadow: 0 0 24px rgba(255, 122, 26, 0.35);
+}
 .hud-msg { font-size: 15px; letter-spacing: 0.2em; color: var(--accent); background: rgba(7, 9, 12, 0.6); padding: 6px 18px; border: 1px solid rgba(255, 122, 26, 0.4); }
 .hud-warn-big { font-size: 16px; letter-spacing: 0.24em; color: var(--bad); background: rgba(7, 9, 12, 0.6); padding: 6px 18px; border: 1px solid rgba(255, 64, 64, 0.5); animation: blink 0.5s step-end infinite alternate; }
 .hud-warn-big.warn-amber { color: var(--warn); border-color: rgba(255, 197, 61, 0.5); }
@@ -244,7 +249,7 @@ h2 { font-size: 25px; font-weight: 600; letter-spacing: -0.01em; margin-top: 7px
 .contact-line { text-align: right; }
 
 .controls-card {
-  position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%);
+  position: absolute; left: 20px; top: 332px; max-width: 360px;
   background: rgba(16, 21, 27, 0.88); border: 1px solid var(--border); padding: 14px 20px;
   font-family: var(--mono); z-index: 3; transition: opacity 1.2s ease; pointer-events: none;
 }

@@ -202,9 +202,11 @@ export class Sim {
       ? { x: 0, z: 0, climb: 0, yaw: 0, boost: false }
       : {
           x: (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0),
-          z: (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0),
-          climb: (keys.Space ? 1 : 0) - (keys.ControlLeft || keys.ControlRight || keys.KeyC ? 1 : 0),
-          yaw: (keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0),
+          z: (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0),
+          // C (or X) descends; Ctrl still works but is never advertised —
+          // Ctrl+W closes the browser tab and no preventDefault can stop it
+          climb: (keys.Space ? 1 : 0) - (keys.KeyC || keys.KeyX || keys.ControlLeft || keys.ControlRight ? 1 : 0),
+          yaw: (keys.KeyQ || keys.ArrowLeft ? 1 : 0) - (keys.KeyE || keys.ArrowRight ? 1 : 0),
           boost: !!keys.ShiftLeft || !!keys.ShiftRight,
         }
 
@@ -551,6 +553,31 @@ export class Sim {
         5,
       )
     }
+  }
+
+  private coachClimbed = false
+  private coachMoved = false
+
+  /** the one thing a brand-new player should do right now; '' when flying */
+  coachHint(): string {
+    const s = this.state
+    if (this.t > 150 || this.result) return ''
+    if (!this.coachClimbed) {
+      if (!s.landed && s.pos.y - this.env.groundAt(s.pos.x, s.pos.z) > 3) this.coachClimbed = true
+      else return 'HOLD  SPACE  TO TAKE OFF'
+    }
+    if (!this.coachMoved) {
+      if (Math.hypot(s.vel.x, s.vel.z) > 7) this.coachMoved = true
+      else return 'HOLD  W  TO FLY FORWARD  ·  Q / E  TO TURN'
+    }
+    if (this.cfg.mode === 'race' && this.race && !this.race.started) {
+      return 'FLY THROUGH THE GLOWING RING TO START — FOLLOW THE ORANGE ARROW'
+    }
+    if (this.cfg.mode === 'intercept' && this.identified.size + this.shadowed.size === 0 && this.enemies.every((e) => !e.captured)) {
+      const near = this.enemies.some((e) => Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) < 150)
+      if (!near) return 'THE RADAR (BOTTOM RIGHT) POINTS TO THE CONTACTS — FLY AT A DOT'
+    }
+    return ''
   }
 
   /** the HUD's live objective checklist, one entry per step of the mode */
