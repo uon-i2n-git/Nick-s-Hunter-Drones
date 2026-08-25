@@ -203,6 +203,7 @@ export function Hud({ d, controlsOn, onToggleControls }: { d: HudData; controlsO
             ))}
           </div>
         )}
+        <div className="hud-label watermark">Hunter Defence Drones</div>
         <div className="hud-label muted">TAB · {d.camLabel}</div>
         <button className={`hud-btn ${controlsOn ? 'on' : ''}`} onClick={onToggleControls}>
           H · CONTROLS {controlsOn ? 'ON' : 'OFF'}
