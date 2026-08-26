@@ -41,6 +41,7 @@ function freshKeys(): Keys {
 // through to 12 m past it. boost on when roughly aligned and far enough out.
 function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = null, testBackwards = false, scenario = 'circuit') {
   const sim = new Sim({ drone, mode: 'race', weather, scenario })
+  sim.inputSmoothing = false // the bot is the analog pilot
   const keys = freshKeys()
   let steps = 0
   const maxSteps = 600 * 120
@@ -149,6 +150,7 @@ function runRace(drone: DroneId, weather: WeatherId, skipGate: number | null = n
 // ---------- INTERCEPT ----------
 function runIntercept(scenario = 'patrol') {
   const sim = new Sim({ drone: 'peregrine', mode: 'intercept', weather: 'clear', scenario })
+  sim.inputSmoothing = false
   const keys = freshKeys()
   let steps = 0
   let shots = 0
@@ -189,6 +191,7 @@ function runIntercept(scenario = 'patrol') {
 function runCrash() {
   // fly the peregrine at full speed into a container stack side
   const sim = new Sim({ drone: 'peregrine', mode: 'free', weather: 'clear' })
+  sim.inputSmoothing = false
   const keys = freshKeys()
   let crashedAt = -1
   for (let i = 0; i < 30 * 120 && crashedAt < 0; i++) {

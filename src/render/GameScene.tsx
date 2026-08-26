@@ -12,7 +12,7 @@ import { Harbour } from './Harbour.tsx'
 import type { HudData, ContactInfo } from '../ui/Hud.tsx'
 
 const CAM_LABELS = ['CHASE CAM', 'ONBOARD CAM', 'TRIPOD CAM']
-const CHASE_BASE: Record<string, number> = { kestrel: 4.5, clydesdale: 9, peregrine: 6 }
+const CHASE_BASE: Record<string, number> = { kestrel: 5.5, clydesdale: 10, peregrine: 7 }
 
 // Unity-style critically damped smoothing
 class Damp3 {
@@ -65,6 +65,10 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
   }, [])
   const prevMode = useRef(0)
   const tripodPos = useRef(new THREE.Vector3(SPAWN.x + 18, 10, SPAWN.z + 16))
+  // the chase cam follows smoothed YAW only — deriving it from the tilted
+  // forward vector made hard manoeuvres whip the whole frame around
+  const camYaw = useRef(0)
+  const tmpE = useMemo(() => new THREE.Euler(), [])
 
   // player drone mesh
   const droneObj = useMemo(() => {
@@ -224,31 +228,39 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     // ---- camera ----
     const mode = (camModeRef.current ?? 0) % 3
     const dronePos = drone ? drone.position : tmpV2
+    // smoothed heading: pure yaw from the quaternion, low-passed, so pitch
+    // and roll (punch tilt, braking) never swing the camera
+    if (drone) {
+      const targetYaw = tmpE.setFromQuaternion(drone.quaternion, 'YXZ').y
+      let dYaw = targetYaw - camYaw.current
+      while (dYaw > Math.PI) dYaw -= Math.PI * 2
+      while (dYaw < -Math.PI) dYaw += Math.PI * 2
+      camYaw.current += dYaw * Math.min(1, delta * 8)
+    }
+    const cfx = -Math.sin(camYaw.current)
+    const cfz = -Math.cos(camYaw.current)
     // the tripod sets up near wherever the drone is when you switch to it,
     // and repositions if the drone flies out of a sensible viewing range
     if (mode === 2 && drone && (prevMode.current !== 2 || tripodPos.current.distanceTo(dronePos) > 240)) {
-      const fwd = tmpV.set(0, 0, -1).applyQuaternion(drone.quaternion)
-      fwd.y = 0
-      if (fwd.lengthSq() < 0.01) fwd.set(0, 0, -1)
-      fwd.normalize()
       tripodPos.current
         .copy(dronePos)
-        .addScaledVector(fwd, -20)
-        .add(tmpV2.set(-fwd.z, 0, fwd.x).multiplyScalar(9))
+        .addScaledVector(tmpV.set(cfx, 0, cfz), -20)
+        .add(tmpV2.set(-cfz, 0, cfx).multiplyScalar(9))
       tripodPos.current.y = Math.max(dronePos.y + 6, sim.env.groundAt(tripodPos.current.x, tripodPos.current.z) + 3)
     }
     prevMode.current = mode
     if (mode === 0 && drone) {
-      const fwd = tmpV.set(0, 0, -1).applyQuaternion(drone.quaternion)
-      fwd.y = 0
-      if (fwd.lengthSq() < 0.01) fwd.set(0, 0, -1)
-      fwd.normalize()
       const speed = Math.hypot(sim.state.vel.x, sim.state.vel.z)
-      const dist = Math.min(11, CHASE_BASE[sim.def.id] + (speed / sim.def.topSpeed) * 4)
-      const target = tmpV2.copy(dronePos).addScaledVector(fwd, -dist)
-      target.y = dronePos.y + 1.6
+      const dist = Math.min(12, CHASE_BASE[sim.def.id] + (speed / sim.def.topSpeed) * 4)
+      const target = tmpV2.set(dronePos.x - cfx * dist, dronePos.y + 1.9, dronePos.z - cfz * dist)
       camera.position.copy(camDamp.update(target, delta))
-      camera.lookAt(dronePos.x + fwd.x * 2, dronePos.y + 0.4, dronePos.z + fwd.z * 2)
+      // never let the chase cam sink into a deck or hillside
+      const floor = sim.env.groundAt(camera.position.x, camera.position.z) + 1.1
+      if (camera.position.y < floor) {
+        camera.position.y = floor
+        camDamp.cur.y = floor
+      }
+      camera.lookAt(dronePos.x + cfx * 2, dronePos.y + 0.5, dronePos.z + cfz * 2)
     } else if (mode === 1 && drone) {
       const fwd = tmpV.set(0, 0, -1).applyQuaternion(drone.quaternion)
       camera.position.copy(dronePos).addScaledVector(fwd, 0.4)

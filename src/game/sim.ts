@@ -144,6 +144,12 @@ export class Sim {
   distance = 0
   boostTime = 0
   boosting = false
+  // virtual stick: keyboard gives step inputs, so ease them in like real
+  // stick travel (quick to release, gentle to full deflection). The headless
+  // autopilots switch this off — they modulate keys at 120 Hz like an analog
+  // stick, which the easing would smear.
+  inputSmoothing = true
+  private stick = { x: 0, z: 0, yaw: 0 }
   result: Report | null = null
   private endAt = -1
   private endReason = ''
@@ -198,15 +204,32 @@ export class Sim {
     this.t += dt
 
     const tumbling = s.tumbling
+    const rawX = tumbling ? 0 : (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0)
+    const rawZ = tumbling ? 0 : (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0)
+    const rawYaw = tumbling ? 0 : (keys.KeyQ || keys.ArrowLeft ? 1 : 0) - (keys.KeyE || keys.ArrowRight ? 1 : 0)
+    const slew = (cur: number, want: number, attack: number, release: number): number => {
+      const rate = Math.abs(want) > Math.abs(cur) ? dt / attack : dt / release
+      const d2 = want - cur
+      return Math.abs(d2) <= rate ? want : cur + Math.sign(d2) * rate
+    }
+    if (this.inputSmoothing) {
+      this.stick.x = slew(this.stick.x, rawX, 0.28, 0.1)
+      this.stick.z = slew(this.stick.z, rawZ, 0.28, 0.1)
+      this.stick.yaw = slew(this.stick.yaw, rawYaw, 0.2, 0.09)
+    } else {
+      this.stick.x = rawX
+      this.stick.z = rawZ
+      this.stick.yaw = rawYaw
+    }
     const input: DroneInput = tumbling
       ? { x: 0, z: 0, climb: 0, yaw: 0, boost: false }
       : {
-          x: (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0),
-          z: (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0),
+          x: this.stick.x,
+          z: this.stick.z,
           // C (or X) descends; Ctrl still works but is never advertised —
           // Ctrl+W closes the browser tab and no preventDefault can stop it
           climb: (keys.Space ? 1 : 0) - (keys.KeyC || keys.KeyX || keys.ControlLeft || keys.ControlRight ? 1 : 0),
-          yaw: (keys.KeyQ || keys.ArrowLeft ? 1 : 0) - (keys.KeyE || keys.ArrowRight ? 1 : 0),
+          yaw: this.stick.yaw,
           boost: !!keys.ShiftLeft || !!keys.ShiftRight,
         }
 
