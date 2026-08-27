@@ -31,13 +31,6 @@ const PATROL_WPS: V3[] = [
   { x: -40, y: 66, z: 20 },
   { x: 120, y: 78, z: 60 },
 ]
-const SWARM_WPS_B: V3[] = [
-  { x: -200, y: 60, z: 90 },
-  { x: -20, y: 45, z: 110 },
-  { x: 100, y: 70, z: -20 },
-  { x: -120, y: 75, z: -130 },
-  { x: -250, y: 50, z: -40 },
-]
 
 function orbiter(id: string, label: string, cx: number, cz: number, r: number, speed: number, alt: number, a0 = 0): Enemy {
   return {
@@ -56,17 +49,9 @@ function erratic(id: string, label: string, wps: V3[], startWp = 0): Enemy {
   }
 }
 
-export type EnemySet = 'patrol' | 'swarm'
+export type EnemySet = 'patrol'
 
-export function spawnEnemies(set: EnemySet = 'patrol'): Enemy[] {
-  if (set === 'swarm') {
-    return [
-      orbiter('e1', 'CONTACT 01 · SLOW ORBIT', 40, -30, 100, 8, 55),
-      orbiter('e2', 'CONTACT 02 · LOW ORBIT', -140, 30, 70, 10, 40, Math.PI),
-      erratic('e3', 'CONTACT 03 · ERRATIC', PATROL_WPS),
-      erratic('e4', 'CONTACT 04 · ERRATIC', SWARM_WPS_B, 2),
-    ]
-  }
+export function spawnEnemies(_set: EnemySet = 'patrol'): Enemy[] {
   return [
     orbiter('e1', 'CONTACT 01 · SLOW ORBIT', 40, -30, 100, 8, 55),
     erratic('e2', 'CONTACT 02 · ERRATIC', PATROL_WPS),

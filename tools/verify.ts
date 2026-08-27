@@ -187,6 +187,22 @@ function runIntercept(scenario = 'patrol') {
   console.log(`  battery left ${(sim.state.battery * 100).toFixed(0)}%`)
 }
 
+// ---------- SWARM DEMO ----------
+function runSwarmDemo() {
+  // fully autonomous: just step it and check the programme completes
+  const sim = new Sim({ drone: 'kestrel', mode: 'free', weather: 'clear', scenario: 'swarmdemo' })
+  let steps = 0
+  while (!sim.result && steps < 300 * 120) {
+    sim.step({})
+    steps++
+  }
+  const settled = sim.swarm.filter((m) => m.pos.y < 5).length
+  console.log(`\nSWARM DEMO kestrel / clear`)
+  console.log(
+    `  result: ${sim.result ? sim.result.reason : 'TIMED OUT in phase ' + sim.swarmPhase} at t=${fmtTime(sim.t)} | mates recovered ${settled}/8 | crashes ${sim.crashes} | battery left ${(sim.state.battery * 100).toFixed(0)}%`,
+  )
+}
+
 // ---------- CRASH / RESPAWN ----------
 function runCrash() {
   // fly the peregrine at full speed into a container stack side
@@ -219,5 +235,5 @@ runRace('peregrine', 'clear', null, false, 'sprint')
 runRace('kestrel', 'clear', null, false, 'sprint')
 runRace('peregrine', 'gusty', null, false, 'sprint')
 runIntercept()
-runIntercept('swarm')
+runSwarmDemo()
 runCrash()

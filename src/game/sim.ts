@@ -7,7 +7,7 @@ import {
   type DroneInput, type DroneState, type FlightEnv, type Mixer, type Q4, type V3,
 } from './physics.ts'
 import { WEATHERS, windAt, type WeatherId, type WeatherDef } from './weather.ts'
-import { FENCE_RADIUS, SPAWN, SPAWN_YAW, STATIC_TAGGABLES, collide, fenceExcess, groundAt } from './world.ts'
+import { FENCE_RADIUS, SPAWN, SPAWN_YAW, STATIC_TAGGABLES, WHARF_DECK, collide, fenceExcess, groundAt } from './world.ts'
 import { COURSES, DEFAULT_COURSE, GATE_RADIUS, MISSED_GATE_PENALTY, medalFor, medalsFor, type CourseDef, type Gate } from './course.ts'
 import { spawnEnemies, stepEnemy, type Enemy, type EnemySet } from './enemies.ts'
 
@@ -26,6 +26,7 @@ export const SCENARIOS: Record<Mode, Array<{ id: string; label: string; blurb: s
   free: [
     { id: 'demo', label: 'Demo Card', blurb: 'Open harbour — a five-check demo card puts the airframe through its paces.' },
     { id: 'field', label: 'Field Tasks', blurb: 'Four sites across the harbour. Survey each one the way this airframe works: sweep it, drop to it, or beat the clock to it.' },
+    { id: 'swarmdemo', label: 'Swarm Demo', blurb: 'Hands off — the flight system flies your aircraft as swarm lead with eight wingmates: formation, search, perimeter and recovery.' },
   ],
   race: [
     { id: 'circuit', label: 'Port Circuit', blurb: '3 laps · 8 rings around the working port. Beat the par times for a medal.' },
@@ -33,7 +34,6 @@ export const SCENARIOS: Record<Mode, Array<{ id: string; label: string; blurb: s
   ],
   intercept: [
     { id: 'patrol', label: 'Harbour Patrol', blurb: 'Two hostile drones over the basin. Net them, paint them, or shadow them — each airframe has its own play.' },
-    { id: 'swarm', label: 'Swarm Response', blurb: 'Four contacts at once — two orbiters, two erratic runners. Work them one at a time or lose the picture.' },
   ],
 }
 
@@ -44,6 +44,22 @@ export const FIELD_SITES: Array<{ id: string; label: string; pos: V3 }> = [
   { id: 'f3', label: 'MARINA ROW', pos: { x: -100, y: 15, z: 123 } },
   { id: 'f4', label: 'MID-CHANNEL MARK', pos: { x: 400, y: 24, z: 20 } },
 ]
+
+// the swarm demo's scripted programme, in order
+export const SWARM_PHASES = [
+  { id: 'form', label: 'LAUNCH & FORM UP', until: 24 },
+  { id: 'wedge', label: 'WEDGE TRANSIT', until: 56 },
+  { id: 'search', label: 'LINE-ABREAST SEARCH', until: 96 },
+  { id: 'orbit', label: 'PERIMETER ORBIT', until: 132 },
+  { id: 'rtb', label: 'RETURN & RECOVER', until: 999 },
+]
+
+export interface SwarmMate {
+  pos: V3
+  vel: V3
+  yaw: number
+  grounded: boolean
+}
 
 export interface Net {
   pos: V3
@@ -132,6 +148,12 @@ export class Sim {
   siteDone = new Set<string>() // field tasks
   fieldStartAt = -1 // peregrine's clock starts at the first site
   private fieldComplete = false
+  // swarm demo: eight kinematic wingmates + the scripted leader autopilot
+  swarm: SwarmMate[] = []
+  swarmPhase = 0
+  private swarmWp = 0
+  private swarmLanding = false
+  private demoDone = false
 
   crashUntil = -99
   crashFlashUntil = -99
@@ -171,7 +193,11 @@ export class Sim {
       // airframe's battery — see raceDrain in drones.ts. Intercept gets the
       // same treatment: the compressed batteries cannot cover a four-contact
       // swarm at combat throttle, so mission drain is scaled to fit.
-      drainScale: cfg.mode === 'race' ? this.def.raceDrain : cfg.mode === 'intercept' ? 0.65 : 1,
+      drainScale:
+        cfg.mode === 'race' ? this.def.raceDrain
+        : cfg.mode === 'intercept' ? 0.65
+        : (cfg.scenario ?? '') === 'swarmdemo' ? DRONES[cfg.drone].raceDrain * 0.8 // demo power profile: the programme fits every airframe
+        : 1,
     }
     this.prev = { pos: { ...SPAWN }, quat: { ...this.state.quat } }
     this.curr = { pos: { ...SPAWN }, quat: { ...this.state.quat } }
@@ -183,6 +209,16 @@ export class Sim {
       }
     }
     if (cfg.mode === 'intercept') this.enemies = spawnEnemies(this.scenarioId as EnemySet)
+    if (cfg.mode === 'free' && this.scenarioId === 'swarmdemo') {
+      for (let i = 0; i < 8; i++) {
+        this.swarm.push({
+          pos: { x: -132 + (i % 4) * 9, y: WHARF_DECK + 0.3, z: -160 - Math.floor(i / 4) * 8 },
+          vel: v3(),
+          yaw: SPAWN_YAW,
+          grounded: true,
+        })
+      }
+    }
   }
 
   get gates(): Gate[] {
@@ -203,6 +239,9 @@ export class Sim {
     const dt = PHYS_DT
     this.t += dt
 
+    // in the swarm demo the flight system has command — player keys are ignored
+    if (this.cfg.mode === 'free' && this.scenarioId === 'swarmdemo') keys = this.swarmLeaderKeys()
+
     const tumbling = s.tumbling
     const rawX = tumbling ? 0 : (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0)
     const rawZ = tumbling ? 0 : (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0)
@@ -212,7 +251,7 @@ export class Sim {
       const d2 = want - cur
       return Math.abs(d2) <= rate ? want : cur + Math.sign(d2) * rate
     }
-    if (this.inputSmoothing) {
+    if (this.inputSmoothing && this.scenarioId !== 'swarmdemo') {
       this.stick.x = slew(this.stick.x, rawX, 0.28, 0.1)
       this.stick.z = slew(this.stick.z, rawZ, 0.28, 0.1)
       this.stick.yaw = slew(this.stick.yaw, rawYaw, 0.2, 0.09)
@@ -273,6 +312,7 @@ export class Sim {
     if (this.cfg.mode === 'intercept') this.stepIntercept(dt)
     if (this.cfg.mode === 'free') {
       if (this.scenarioId === 'field') this.stepFieldTasks()
+      else if (this.scenarioId === 'swarmdemo') this.stepSwarm(dt)
       else this.stepFreeTasks()
     }
 
@@ -541,6 +581,146 @@ export class Sim {
     }
   }
 
+  /** the demo leader's flight plan: per-phase waypoints over open water */
+  private static SWARM_ROUTE: Record<string, V3[]> = {
+    form: [{ x: -70, y: 30, z: -70 }],
+    wedge: [{ x: 20, y: 32, z: -50 }, { x: 110, y: 34, z: 0 }],
+    search: [{ x: 40, y: 30, z: 30 }, { x: -80, y: 28, z: 16 }, { x: -200, y: 28, z: 0 }],
+    orbit: [{ x: -90, y: 32, z: -40 }],
+    rtb: [{ x: -110, y: 22, z: -120 }, { x: SPAWN.x, y: 14, z: SPAWN.z }],
+  }
+
+  /** scripted autopilot: flies the player's aircraft through the programme */
+  private swarmLeaderKeys(): Record<string, boolean> {
+    const s = this.state
+    const keys: Record<string, boolean> = {}
+    const phase = SWARM_PHASES[this.swarmPhase]
+    // vertical takeoff before the programme starts moving — the loaded
+    // clydesdale needs the full climb, it sinks under forward command
+    if (this.swarmPhase === 0 && s.pos.y < 24) {
+      keys.Space = s.targetAlt < 28
+      return keys
+    }
+    const route = Sim.SWARM_ROUTE[phase.id]
+    const wp = route[Math.min(this.swarmWp, route.length - 1)]
+    const dx = wp.x - s.pos.x
+    const dz = wp.z - s.pos.z
+    const d = Math.hypot(dx, dz)
+    if (d < 12 && this.swarmWp < route.length - 1) this.swarmWp++
+    // final leg of RTB: hold over the pad and put it down (latched — the
+    // heavier airframes drift a little while descending)
+    if (phase.id === 'rtb' && this.swarmWp >= route.length - 1 && d < 10) this.swarmLanding = true
+    if (this.swarmLanding) {
+      // feather the descent: heavy airframes build a sink rate that would
+      // flag a crash on touchdown if the descend key were simply held
+      keys.ControlLeft = s.vel.y > -2.2
+      return keys
+    }
+    const want = Math.atan2(-dx, -dz)
+    const f = this.forward()
+    let err = want - Math.atan2(-f.x, -f.z)
+    while (err > Math.PI) err -= 2 * Math.PI
+    while (err < -Math.PI) err += 2 * Math.PI
+    keys.KeyQ = err > 0.06
+    keys.KeyE = err < -0.06
+    // orbit phase: the leader holds station at the ring centre
+    keys.KeyW = Math.abs(err) < 1.0 && (phase.id !== 'orbit' || d > 10)
+    keys.Space = s.targetAlt < wp.y - 0.5
+    keys.ControlLeft = s.targetAlt > wp.y + 0.5
+    // sinking well below the plan under full stick: ease off and recover
+    if (s.pos.y < wp.y - 5 && s.vel.y < 0) keys.KeyW = false
+    return keys
+  }
+
+  /** mates seek their formation slots; phases advance on the clock */
+  private stepSwarm(dt: number) {
+    const s = this.state
+    const phase = SWARM_PHASES[this.swarmPhase]
+    // phase clock
+    if (this.t >= phase.until && this.swarmPhase < SWARM_PHASES.length - 1) {
+      this.swarmPhase++
+      this.swarmWp = 0
+      this.say(`SWARM — ${SWARM_PHASES[this.swarmPhase].label}`, 3)
+      // the recon lead sweeps as the search line forms
+      if (SWARM_PHASES[this.swarmPhase].id === 'search' && this.def.id === 'kestrel') this.requestAbility()
+    }
+    if (this.t < 0.1) this.say('SWARM DEMONSTRATION — FLIGHT SYSTEM HAS COMMAND', 4)
+    // the clydesdale flies the programme clean: set the payload down first
+    if (this.def.id === 'clydesdale' && this.state.hasPayload && this.t > 1 && this.t < 1.2) this.requestAbility()
+
+    // leader frame
+    const f = this.forward()
+    const yaw = Math.atan2(-f.x, -f.z)
+    const rX = Math.cos(yaw)
+    const rZ = -Math.sin(yaw)
+    const bX = Math.sin(yaw)
+    const bZ = Math.cos(yaw)
+
+    this.swarm.forEach((m, i) => {
+      // slot for this mate in the current phase
+      let tx: number
+      let ty: number
+      let tz: number
+      const row = Math.floor(i / 2) + 1
+      const side = i % 2 === 0 ? 1 : -1
+      if (phase.id === 'form' || phase.id === 'wedge') {
+        tx = s.pos.x + (rX * side * 7 + bX) * row * 1.0 + bX * row * 8
+        tz = s.pos.z + (rZ * side * 7 + bZ) * row * 1.0 + bZ * row * 8
+        ty = s.pos.y + (i % 2 ? 1.5 : -1.5)
+      } else if (phase.id === 'search') {
+        const k = i < 4 ? i + 1 : -(i - 3) // 4 either side of the lead
+        tx = s.pos.x + rX * k * 13
+        tz = s.pos.z + rZ * k * 13
+        ty = s.pos.y + (i % 2 ? 2 : 0)
+      } else if (phase.id === 'orbit') {
+        const a = this.t * 0.45 + (i * Math.PI) / 4
+        tx = -90 + Math.cos(a) * 26
+        tz = -40 + Math.sin(a) * 26
+        ty = 32 + (i % 2) * 5
+      } else {
+        // rtb: trail column home, then ground on the apron grid
+        if (s.landed || this.demoDone) {
+          tx = -132 + (i % 4) * 9
+          tz = -160 - Math.floor(i / 4) * 8
+          ty = WHARF_DECK + 0.3
+        } else {
+          tx = s.pos.x + bX * (i + 1) * 9
+          tz = s.pos.z + bZ * (i + 1) * 9
+          ty = s.pos.y + 2
+        }
+      }
+      // seek the slot, kinematically
+      const dx = tx - m.pos.x
+      const dy = ty - m.pos.y
+      const dz = tz - m.pos.z
+      const dist = Math.hypot(dx, dy, dz)
+      if (m.grounded && phase.id !== 'form' && this.swarmPhase === 0) return
+      m.grounded = dist < 1.2 && ty <= WHARF_DECK + 0.5
+      const speed = Math.min(26, 2 + dist * 1.4)
+      const k2 = 2.6 * dt
+      m.vel.x += ((dx / (dist || 1)) * speed - m.vel.x) * k2
+      m.vel.y += ((dy / (dist || 1)) * speed * 0.8 - m.vel.y) * k2
+      m.vel.z += ((dz / (dist || 1)) * speed - m.vel.z) * k2
+      m.pos.x += m.vel.x * dt
+      m.pos.y = Math.max(WHARF_DECK + 0.3, m.pos.y + m.vel.y * dt)
+      m.pos.z += m.vel.z * dt
+      const moving = Math.hypot(m.vel.x, m.vel.z) > 2
+      m.yaw = phase.id === 'orbit' || !moving ? m.yaw : Math.atan2(-m.vel.x, -m.vel.z)
+      if (phase.id === 'orbit') m.yaw = Math.atan2(-m.vel.x, -m.vel.z)
+    })
+
+    // the programme ends once the lead is down and the mates have settled
+    if (phase.id === 'rtb' && s.landed && !this.demoDone) {
+      const settled = this.swarm.every((m) => m.pos.y < WHARF_DECK + 1.4)
+      if (settled && this.endAt < 0 && this.result === null) {
+        this.demoDone = true
+        this.endReason = 'SWARM DEMONSTRATION COMPLETE'
+        this.endAt = this.t + 3
+        this.say('SWARM RECOVERED — DEMONSTRATION COMPLETE', 3)
+      }
+    }
+  }
+
   /** field tasks: four sites, surveyed the way each airframe works */
   private stepFieldTasks() {
     const s = this.state
@@ -584,6 +764,7 @@ export class Sim {
   /** the one thing a brand-new player should do right now; '' when flying */
   coachHint(): string {
     const s = this.state
+    if (this.scenarioId === 'swarmdemo') return ''
     if (this.t > 150 || this.result) return ''
     if (!this.coachClimbed) {
       if (!s.landed && s.pos.y - this.env.groundAt(s.pos.x, s.pos.z) > 3) this.coachClimbed = true
@@ -605,6 +786,12 @@ export class Sim {
 
   /** the HUD's live objective checklist, one entry per step of the mode */
   objectiveSteps(): Array<{ label: string; state: 'done' | 'now' | 'todo' }> {
+    if (this.cfg.mode === 'free' && this.scenarioId === 'swarmdemo') {
+      return SWARM_PHASES.map((ph, i) => ({
+        label: ph.label,
+        state: i < this.swarmPhase || this.demoDone ? 'done' : i === this.swarmPhase ? 'now' : 'todo',
+      }))
+    }
     if (this.cfg.mode === 'free' && this.scenarioId === 'field') {
       const how =
         this.def.id === 'kestrel' ? 'SWEEP (F) INSIDE 150 M'
@@ -722,7 +909,11 @@ export class Sim {
       else if (this.def.id === 'clydesdale') objectives.push(`${this.shadowed.size} of ${N} contacts shadowed at visual range`)
       else objectives.push(`${captures} of ${N} hostile contacts captured`)
     }
-    if (this.cfg.mode === 'free' && this.scenarioId === 'field') {
+    if (this.cfg.mode === 'free' && this.scenarioId === 'swarmdemo') {
+      objectives.push('nine-airframe coordinated demonstration flown by the flight system')
+      objectives.push('formation, transit, area search, perimeter orbit and recovery shown')
+      objectives.push(`${(this.distance / 1000).toFixed(1)} km flown by the lead aircraft`)
+    } else if (this.cfg.mode === 'free' && this.scenarioId === 'field') {
       objectives.push(`field tasks: ${this.siteDone.size} of ${FIELD_SITES.length} sites surveyed`)
       if (this.def.id === 'peregrine' && this.fieldStartAt >= 0 && this.siteDone.size === FIELD_SITES.length) {
         objectives.push(`all sites in ${fmtTime(this.t - this.fieldStartAt)}${this.t - this.fieldStartAt <= 150 ? ' — inside the 2:30 target' : ''}`)
@@ -760,6 +951,8 @@ export class Sim {
     const mins = this.t / 60
     const used = Math.max(1, Math.round((1 - this.state.battery) * 100))
     const gusty = this.cfg.weather === 'gusty'
+    if (this.scenarioId === 'swarmdemo')
+      return 'One operator, nine airframes — formation, search and perimeter security flown entirely by the flight system. Swarm coordination is a software feature, not a head-count.'
     switch (this.cfg.drone) {
       case 'kestrel':
         if (this.identified.size >= 2)
