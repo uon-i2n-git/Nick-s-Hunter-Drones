@@ -64,6 +64,14 @@ export const SWARM_TARGETS: Array<{ id: string; label: string; pos: V3 | null }>
   { id: 'mouth', label: 'HARBOUR MOUTH', pos: { x: 560, y: 26, z: 20 } },
 ]
 
+/** turn toward a heading through the short way round, k per step (≤1) */
+function blendYaw(cur: number, want: number, k: number): number {
+  let d = want - cur
+  while (d > Math.PI) d -= 2 * Math.PI
+  while (d < -Math.PI) d += 2 * Math.PI
+  return cur + d * Math.min(1, k)
+}
+
 export interface SwarmMate {
   pos: V3
   vel: V3
@@ -614,29 +622,37 @@ export class Sim {
     const tgt = SWARM_TARGETS[this.swarmTask]
     if (this.t < 0.1) this.say('SWARM COMMAND — KEYS 1-5 TASK THE SWARM', 4)
     let cx = 0
+    let cy = 0
     let cz = 0
     this.swarm.forEach((m, i) => {
       let tx: number
       let ty: number
       let tz: number
       if (!tgt.pos) {
-        // escort ring around the player, slowly rotating
+        // escort ring around where the player is about to be, not where it was —
+        // without the velocity lead the ring trails 200 m behind a boosting HD-3
         const a = this.t * 0.3 + (i * Math.PI) / 4
-        tx = s.pos.x + Math.cos(a) * 12
-        tz = s.pos.z + Math.sin(a) * 12
+        tx = s.pos.x + s.vel.x * 0.5 + Math.cos(a) * 12
+        tz = s.pos.z + s.vel.z * 0.5 + Math.sin(a) * 12
         ty = Math.max(8, s.pos.y + (i % 2 ? 3 : -1))
       } else {
-        // fly straight to an orbit slot over the site; the slot ring turns
+        // fly to an orbit slot over the site; the slot ring turns
         const a = this.t * 0.4 + (i * Math.PI) / 4
         tx = tgt.pos.x + Math.cos(a) * 28
         tz = tgt.pos.z + Math.sin(a) * 28
         ty = tgt.pos.y + (i % 2) * 6
       }
+      const dH = Math.hypot(tx - m.pos.x, tz - m.pos.z)
+      // transit above the 45 m crane tops, swoop down over the last 60 m —
+      // the direct line otherwise pins mates against the city frontage blocks
+      if (dH > 60) ty = Math.max(ty, 48)
       const dx = tx - m.pos.x
       const dy = ty - m.pos.y
       const dz = tz - m.pos.z
       const dist = Math.hypot(dx, dy, dz)
-      const speed = Math.min(26, 2 + dist * 1.4)
+      // a stretched escort closes at up to 38 m/s; on-site orbits stay stately
+      const cap = !tgt.pos && dH > 20 ? 38 : 26
+      const speed = Math.min(cap, 2 + dist * 1.4)
       const k2 = 2.6 * dt
       m.vel.x += ((dx / (dist || 1)) * speed - m.vel.x) * k2
       m.vel.y += ((dy / (dist || 1)) * speed * 0.8 - m.vel.y) * k2
@@ -644,16 +660,19 @@ export class Sim {
       m.pos.x += m.vel.x * dt
       m.pos.y = Math.max(WHARF_DECK + 0.3, m.pos.y + m.vel.y * dt)
       m.pos.z += m.vel.z * dt
-      m.yaw = Math.hypot(m.vel.x, m.vel.z) > 2 ? Math.atan2(-m.vel.x, -m.vel.z) : m.yaw
+      collide(m) // wingmates slide around walls and crane posts, same as the player
+      if (Math.hypot(m.vel.x, m.vel.z) > 2) m.yaw = blendYaw(m.yaw, Math.atan2(-m.vel.x, -m.vel.z), 5 * dt)
       cx += m.pos.x
+      cy += m.pos.y
       cz += m.pos.z
     })
     // announce arrival on station at a tasked site
     if (tgt.pos && !this.swarmOnStation) {
       const d = Math.hypot(cx / 8 - tgt.pos.x, cz / 8 - tgt.pos.z)
       // 30 m: inside the 28 m orbit ring's settled centroid, but outside the
-      // spawn apron's 32 m offset from the coal terminal — no instant trigger
-      if (d < 30) {
+      // spawn apron's 32 m offset from the coal terminal — no instant trigger.
+      // the height gate keeps it honest while they swoop down from transit
+      if (d < 30 && Math.abs(cy / 8 - tgt.pos.y) < 12) {
         this.swarmOnStation = true
         this.swarmVisited.add(tgt.id)
         this.say(`SWARM ON STATION — ${tgt.label}`, 2.5)
@@ -785,8 +804,7 @@ export class Sim {
       m.pos.y = Math.max(WHARF_DECK + 0.3, m.pos.y + m.vel.y * dt)
       m.pos.z += m.vel.z * dt
       const moving = Math.hypot(m.vel.x, m.vel.z) > 2
-      m.yaw = phase.id === 'orbit' || !moving ? m.yaw : Math.atan2(-m.vel.x, -m.vel.z)
-      if (phase.id === 'orbit') m.yaw = Math.atan2(-m.vel.x, -m.vel.z)
+      if (phase.id === 'orbit' || moving) m.yaw = blendYaw(m.yaw, Math.atan2(-m.vel.x, -m.vel.z), 5 * dt)
     })
 
     // the programme ends once the lead is down and the mates have settled
