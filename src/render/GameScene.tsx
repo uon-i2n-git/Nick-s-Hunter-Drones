@@ -277,11 +277,37 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     prevMode.current = mode
     if (mode === 0 && drone) {
       const speed = Math.hypot(sim.state.vel.x, sim.state.vel.z)
-      // the swarm demo frames the whole formation, not just the lead
       const isSwarmDemo = sim.scenarioId === 'swarmdemo'
-      const dist = isSwarmDemo ? 30 : Math.min(12, CHASE_BASE[sim.def.id] + (speed / sim.def.topSpeed) * 4)
-      const height = isSwarmDemo ? 10 : 1.9
-      const target = tmpV2.set(dronePos.x - cfx * dist, dronePos.y + height, dronePos.z - cfz * dist)
+      let aimX = dronePos.x
+      let aimY = dronePos.y + 0.5
+      let aimZ = dronePos.z
+      let dist = Math.min(12, CHASE_BASE[sim.def.id] + (speed / sim.def.topSpeed) * 4)
+      let height = 1.9
+      if (isSwarmDemo && sim.swarm.length) {
+        // frame the whole formation: aim the swarm's centre and back off far
+        // enough that the widest drone fits the frustum — a fixed offset
+        // behind the lead left the trailing wingmates out of frame
+        let cx = dronePos.x
+        let cy = dronePos.y
+        let cz = dronePos.z
+        for (const m of sim.swarm) {
+          cx += m.pos.x
+          cy += m.pos.y
+          cz += m.pos.z
+        }
+        const n = sim.swarm.length + 1
+        cx /= n
+        cy /= n
+        cz /= n
+        let spread = Math.hypot(dronePos.x - cx, dronePos.z - cz)
+        for (const m of sim.swarm) spread = Math.max(spread, Math.hypot(m.pos.x - cx, m.pos.z - cz))
+        aimX = cx
+        aimY = cy + 1
+        aimZ = cz
+        dist = Math.min(125, spread * 1.35 + 16)
+        height = Math.min(34, spread * 0.45 + 8)
+      }
+      const target = tmpV2.set(aimX - cfx * dist, aimY + height - (isSwarmDemo ? 1 : 0.5), aimZ - cfz * dist)
       camera.position.copy(camDamp.update(target, delta))
       // never let the chase cam sink into a deck or hillside
       const floor = sim.env.groundAt(camera.position.x, camera.position.z) + 1.1
@@ -289,7 +315,11 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
         camera.position.y = floor
         camDamp.cur.y = floor
       }
-      camera.lookAt(dronePos.x + cfx * 2, dronePos.y + 0.5, dronePos.z + cfz * 2)
+      camera.lookAt(
+        isSwarmDemo ? aimX : aimX + cfx * 2,
+        aimY,
+        isSwarmDemo ? aimZ : aimZ + cfz * 2,
+      )
     } else if (mode === 1 && drone) {
       const fwd = tmpV.set(0, 0, -1).applyQuaternion(drone.quaternion)
       camera.position.copy(dronePos).addScaledVector(fwd, 0.4)
@@ -675,7 +705,7 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
         : sim.scenarioId === 'swarmdemo'
           ? 'SWARM DEMONSTRATION — THE FLIGHT SYSTEM HAS COMMAND.\nSIT BACK · TAB CHANGES CAMERA · ESC EXITS.'
           : sim.scenarioId === 'swarmops'
-            ? 'SWARM COMMAND — YOU FLY, THE SWARM WORKS.\nKEYS 1-5 TASK IT TO THE SITES BELOW.'
+            ? 'TEAM SWARM — YOU FLY, THE SWARM WORKS.\nKEYS 1-5 TASK IT TO THE SITES BELOW.'
             : 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
   } else if (sim.cfg.mode === 'race') {
     objective = sim.race!.started

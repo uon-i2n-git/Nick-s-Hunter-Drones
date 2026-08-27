@@ -173,7 +173,7 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
   }, [cfg, setCfg, onLaunch])
 
   const modes: Array<[Mode, string]> = [
-    ['free', 'Free Flight'],
+    ['free', 'Demo'],
     ['race', 'Race'],
     ['intercept', 'Intercept'],
   ]
