@@ -24,9 +24,9 @@ export interface SimConfig {
 /** the selectable scenarios per mode, first is the default */
 export const SCENARIOS: Record<Mode, Array<{ id: string; label: string; blurb: string }>> = {
   free: [
-    { id: 'demo', label: 'Free Flight', blurb: 'Open harbour, fly anywhere — a five-check demo card puts the airframe through its paces.' },
+    { id: 'demo', label: 'Flight Demo', blurb: 'Open harbour, fly anywhere — a five-check demo card puts the airframe through its paces.' },
     { id: 'swarmdemo', label: 'Swarm Demo', blurb: 'Hands off — the flight system flies your aircraft as swarm lead with eight wingmates: formation, search, perimeter and recovery.' },
-    { id: 'swarmops', label: 'Team Swarm', blurb: 'You fly free while eight wingmates work for you — task the swarm to named sites with keys 1–5, or call it into escort.' },
+    { id: 'swarmops', label: 'Swarm Command', blurb: 'You fly free while eight wingmates work for you — task the swarm to named sites with keys 1–5, or call it into escort.' },
   ],
   race: [
     { id: 'circuit', label: 'Port Circuit', blurb: '3 laps · 8 rings around the working port. Beat the par times for a medal.' },
@@ -619,7 +619,7 @@ export class Sim {
   private stepSwarmOps(dt: number) {
     const s = this.state
     const tgt = SWARM_TARGETS[this.swarmTask]
-    if (this.t < 0.1) this.say('TEAM SWARM — KEYS 1-5 TASK THE SWARM', 4)
+    if (this.t < 0.1) this.say('SWARM COMMAND — KEYS 1-5 TASK THE SWARM', 4)
     let cx = 0
     let cy = 0
     let cz = 0
