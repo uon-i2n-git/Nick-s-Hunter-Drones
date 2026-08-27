@@ -286,8 +286,9 @@ export function groundAt(x: number, z: number, y = 1e9): number {
   return g
 }
 
-/** push the drone out of box sides; returns true on a hard lateral hit */
-export function collide(s: DroneState): boolean {
+/** push the drone out of box sides; returns true on a hard lateral hit.
+ *  Structural param: swarm wingmates go through here too, not just the player. */
+export function collide(s: Pick<DroneState, 'pos' | 'vel'>): boolean {
   let hard = false
   for (const b of SOLIDS) {
     const dx = s.pos.x - b.x
