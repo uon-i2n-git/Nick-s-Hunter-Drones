@@ -190,7 +190,10 @@ export function stepDrone(
   // altitude hold: Space/Ctrl slew the target altitude
   s.targetAlt += input.climb * def.climbRate * dt
   const ground = env.groundAt(s.pos.x, s.pos.z)
-  s.targetAlt = Math.max(ground + 0.4, Math.min(180, s.targetAlt))
+  // holding full descend near the ground lets the setpoint settle through the
+  // touchdown height — otherwise the 0.4 m hover floor makes landing impossible
+  const minAlt = input.climb < -0.5 ? ground + 0.05 : ground + 0.4
+  s.targetAlt = Math.max(minAlt, Math.min(180, s.targetAlt))
   let aUp = def.kAltP * (s.targetAlt - s.pos.y) + def.kAltD * -s.vel.y
   aUp = Math.max(-0.85 * G, Math.min(def.climbRate * 2.5, aUp))
 

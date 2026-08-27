@@ -179,6 +179,32 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [trailGeo, sim.def.id],
   )
+  // swarm-demo wingmates: one instanced mesh per part, updated every frame
+  const swarmN = sim.swarm.length
+  const swarmParts = useMemo(() => {
+    if (swarmN === 0) return null
+    const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, count: number) => new THREE.InstancedMesh(geo, mat, count)
+    const dark = new THREE.MeshStandardMaterial({ color: '#262c34', roughness: 0.6, metalness: 0.3 })
+    const parts = {
+      bodies: mk(new THREE.BoxGeometry(0.44, 0.16, 0.44), dark, swarmN),
+      armsA: mk(new THREE.BoxGeometry(1.5, 0.05, 0.09), dark, swarmN),
+      armsB: mk(new THREE.BoxGeometry(0.09, 0.05, 1.5), dark, swarmN),
+      discs: mk(
+        new THREE.CircleGeometry(0.26, 14),
+        new THREE.MeshBasicMaterial({ color: '#20262c', transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
+        swarmN * 4,
+      ),
+      lights: mk(
+        new THREE.SphereGeometry(0.07, 6, 5),
+        new THREE.MeshStandardMaterial({ color: '#ff7a1a', emissive: '#ff7a1a', emissiveIntensity: 2.5 }),
+        swarmN,
+      ),
+    }
+    for (const m of Object.values(parts)) m.frustumCulled = false
+    return parts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swarmN])
+
   const cableLine = useMemo(() => {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3))
@@ -251,8 +277,11 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     prevMode.current = mode
     if (mode === 0 && drone) {
       const speed = Math.hypot(sim.state.vel.x, sim.state.vel.z)
-      const dist = Math.min(12, CHASE_BASE[sim.def.id] + (speed / sim.def.topSpeed) * 4)
-      const target = tmpV2.set(dronePos.x - cfx * dist, dronePos.y + 1.9, dronePos.z - cfz * dist)
+      // the swarm demo frames the whole formation, not just the lead
+      const isSwarmDemo = sim.swarm.length > 0
+      const dist = isSwarmDemo ? 30 : Math.min(12, CHASE_BASE[sim.def.id] + (speed / sim.def.topSpeed) * 4)
+      const height = isSwarmDemo ? 10 : 1.9
+      const target = tmpV2.set(dronePos.x - cfx * dist, dronePos.y + height, dronePos.z - cfz * dist)
       camera.position.copy(camDamp.update(target, delta))
       // never let the chase cam sink into a deck or hillside
       const floor = sim.env.groundAt(camera.position.x, camera.position.z) + 1.1
@@ -444,6 +473,37 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
       }
     }
 
+    // ---- swarm wingmates ----
+    if (swarmParts) {
+      const m = new THREE.Matrix4()
+      const q = tmpQ
+      sim.swarm.forEach((mate, i) => {
+        q.setFromEuler(tmpE.set(0, mate.yaw, 0))
+        m.compose(tmpV.set(mate.pos.x, mate.pos.y, mate.pos.z), q, tmpV2.set(1, 1, 1))
+        swarmParts.bodies.setMatrixAt(i, m)
+        swarmParts.armsA.setMatrixAt(i, m)
+        swarmParts.armsB.setMatrixAt(i, m)
+        // tail nav light
+        m.compose(
+          tmpV.set(mate.pos.x + Math.sin(mate.yaw) * 0.28, mate.pos.y + 0.12, mate.pos.z + Math.cos(mate.yaw) * 0.28),
+          q,
+          tmpV2.set(1, 1, 1),
+        )
+        swarmParts.lights.setMatrixAt(i, m)
+        // four rotor discs on the arm ends
+        for (let r = 0; r < 4; r++) {
+          const a = mate.yaw + (r * Math.PI) / 2
+          m.compose(
+            tmpV.set(mate.pos.x + Math.sin(a) * 0.68, mate.pos.y + 0.09, mate.pos.z + Math.cos(a) * 0.68),
+            tmpQ2.setFromEuler(tmpE.set(-Math.PI / 2, 0, 0)),
+            tmpV2.set(1, 1, 1),
+          )
+          swarmParts.discs.setMatrixAt(i * 4 + r, m)
+        }
+      })
+      for (const pm of Object.values(swarmParts)) pm.instanceMatrix.needsUpdate = true
+    }
+
     // ---- field-task site markers ----
     if (sim.cfg.mode === 'free' && sim.scenarioId === 'field') {
       FIELD_SITES.forEach((site, i) => {
@@ -557,6 +617,9 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
         <meshBasicMaterial color="#cfd6da" transparent opacity={0.25} depthWrite={false} />
       </mesh>
 
+      {/* swarm-demo wingmates */}
+      {swarmParts && Object.values(swarmParts).map((m, i) => <primitive key={'sw' + i} object={m} />)}
+
       {/* field-task site markers */}
       {sim.cfg.mode === 'free' &&
         sim.scenarioId === 'field' &&
@@ -609,7 +672,9 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
     objective =
       sim.scenarioId === 'field'
         ? 'FIELD TASKS — SURVEY THE FOUR MARKED SITES.'
-        : 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
+        : sim.scenarioId === 'swarmdemo'
+          ? 'SWARM DEMONSTRATION — THE FLIGHT SYSTEM HAS COMMAND.\nSIT BACK · TAB CHANGES CAMERA · ESC EXITS.'
+          : 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
   } else if (sim.cfg.mode === 'race') {
     objective = sim.race!.started
       ? 'FLY THROUGH THE GLOWING ORANGE RING.'
