@@ -278,7 +278,7 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     if (mode === 0 && drone) {
       const speed = Math.hypot(sim.state.vel.x, sim.state.vel.z)
       // the swarm demo frames the whole formation, not just the lead
-      const isSwarmDemo = sim.swarm.length > 0
+      const isSwarmDemo = sim.scenarioId === 'swarmdemo'
       const dist = isSwarmDemo ? 30 : Math.min(12, CHASE_BASE[sim.def.id] + (speed / sim.def.topSpeed) * 4)
       const height = isSwarmDemo ? 10 : 1.9
       const target = tmpV2.set(dronePos.x - cfx * dist, dronePos.y + height, dronePos.z - cfz * dist)
@@ -674,7 +674,9 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
         ? 'FIELD TASKS — SURVEY THE FOUR MARKED SITES.'
         : sim.scenarioId === 'swarmdemo'
           ? 'SWARM DEMONSTRATION — THE FLIGHT SYSTEM HAS COMMAND.\nSIT BACK · TAB CHANGES CAMERA · ESC EXITS.'
-          : 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
+          : sim.scenarioId === 'swarmops'
+            ? 'SWARM COMMAND — YOU FLY, THE SWARM WORKS.\nKEYS 1-5 TASK IT TO THE SITES BELOW.'
+            : 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
   } else if (sim.cfg.mode === 'race') {
     objective = sim.race!.started
       ? 'FLY THROUGH THE GLOWING ORANGE RING.'
