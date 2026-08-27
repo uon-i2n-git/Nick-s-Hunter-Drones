@@ -27,6 +27,7 @@ export const SCENARIOS: Record<Mode, Array<{ id: string; label: string; blurb: s
     { id: 'demo', label: 'Demo Card', blurb: 'Open harbour — a five-check demo card puts the airframe through its paces.' },
     { id: 'field', label: 'Field Tasks', blurb: 'Four sites across the harbour. Survey each one the way this airframe works: sweep it, drop to it, or beat the clock to it.' },
     { id: 'swarmdemo', label: 'Swarm Demo', blurb: 'Hands off — the flight system flies your aircraft as swarm lead with eight wingmates: formation, search, perimeter and recovery.' },
+    { id: 'swarmops', label: 'Swarm Command', blurb: 'You fly free while eight wingmates work for you — task the swarm to named sites with keys 1–5, or call it into escort.' },
   ],
   race: [
     { id: 'circuit', label: 'Port Circuit', blurb: '3 laps · 8 rings around the working port. Beat the par times for a medal.' },
@@ -52,6 +53,15 @@ export const SWARM_PHASES = [
   { id: 'search', label: 'LINE-ABREAST SEARCH', until: 96 },
   { id: 'orbit', label: 'PERIMETER ORBIT', until: 132 },
   { id: 'rtb', label: 'RETURN & RECOVER', until: 999 },
+]
+
+// swarm command taskings: 1 recalls to escort, 2-5 send the swarm to a site
+export const SWARM_TARGETS: Array<{ id: string; label: string; pos: V3 | null }> = [
+  { id: 'follow', label: 'FOLLOW ME — ESCORT', pos: null },
+  { id: 'coal', label: 'COAL TERMINAL', pos: { x: -150, y: 30, z: -170 } },
+  { id: 'yard', label: 'CONTAINER YARD', pos: { x: 30, y: 30, z: -235 } },
+  { id: 'marina', label: 'MARINA ROW', pos: { x: -100, y: 22, z: 118 } },
+  { id: 'mouth', label: 'HARBOUR MOUTH', pos: { x: 560, y: 26, z: 20 } },
 ]
 
 export interface SwarmMate {
@@ -154,6 +164,11 @@ export class Sim {
   private swarmWp = 0
   private swarmLanding = false
   private demoDone = false
+  // swarm command state
+  swarmTask = 0 // index into SWARM_TARGETS; 0 = escort
+  swarmTaskings = 0
+  swarmVisited = new Set<string>()
+  private swarmOnStation = false
 
   crashUntil = -99
   crashFlashUntil = -99
@@ -209,7 +224,7 @@ export class Sim {
       }
     }
     if (cfg.mode === 'intercept') this.enemies = spawnEnemies(this.scenarioId as EnemySet)
-    if (cfg.mode === 'free' && this.scenarioId === 'swarmdemo') {
+    if (cfg.mode === 'free' && (this.scenarioId === 'swarmdemo' || this.scenarioId === 'swarmops')) {
       for (let i = 0; i < 8; i++) {
         this.swarm.push({
           pos: { x: -132 + (i % 4) * 9, y: WHARF_DECK + 0.3, z: -160 - Math.floor(i / 4) * 8 },
@@ -313,6 +328,7 @@ export class Sim {
     if (this.cfg.mode === 'free') {
       if (this.scenarioId === 'field') this.stepFieldTasks()
       else if (this.scenarioId === 'swarmdemo') this.stepSwarm(dt)
+      else if (this.scenarioId === 'swarmops') this.stepSwarmOps(dt)
       else this.stepFreeTasks()
     }
 
@@ -581,6 +597,70 @@ export class Sim {
     }
   }
 
+  /** swarm command: retask the eight (1 = escort, 2-5 = named sites) */
+  commandSwarm(idx: number) {
+    if (this.scenarioId !== 'swarmops' || this.result) return
+    const i = Math.max(0, Math.min(SWARM_TARGETS.length - 1, idx))
+    if (i === this.swarmTask) return
+    this.swarmTask = i
+    this.swarmTaskings++
+    this.swarmOnStation = false
+    this.say(`SWARM TASKED — ${SWARM_TARGETS[i].label}`, 2.5)
+  }
+
+  /** mates work the current tasking while the player flies free */
+  private stepSwarmOps(dt: number) {
+    const s = this.state
+    const tgt = SWARM_TARGETS[this.swarmTask]
+    if (this.t < 0.1) this.say('SWARM COMMAND — KEYS 1-5 TASK THE SWARM', 4)
+    let cx = 0
+    let cz = 0
+    this.swarm.forEach((m, i) => {
+      let tx: number
+      let ty: number
+      let tz: number
+      if (!tgt.pos) {
+        // escort ring around the player, slowly rotating
+        const a = this.t * 0.3 + (i * Math.PI) / 4
+        tx = s.pos.x + Math.cos(a) * 12
+        tz = s.pos.z + Math.sin(a) * 12
+        ty = Math.max(8, s.pos.y + (i % 2 ? 3 : -1))
+      } else {
+        // fly straight to an orbit slot over the site; the slot ring turns
+        const a = this.t * 0.4 + (i * Math.PI) / 4
+        tx = tgt.pos.x + Math.cos(a) * 28
+        tz = tgt.pos.z + Math.sin(a) * 28
+        ty = tgt.pos.y + (i % 2) * 6
+      }
+      const dx = tx - m.pos.x
+      const dy = ty - m.pos.y
+      const dz = tz - m.pos.z
+      const dist = Math.hypot(dx, dy, dz)
+      const speed = Math.min(26, 2 + dist * 1.4)
+      const k2 = 2.6 * dt
+      m.vel.x += ((dx / (dist || 1)) * speed - m.vel.x) * k2
+      m.vel.y += ((dy / (dist || 1)) * speed * 0.8 - m.vel.y) * k2
+      m.vel.z += ((dz / (dist || 1)) * speed - m.vel.z) * k2
+      m.pos.x += m.vel.x * dt
+      m.pos.y = Math.max(WHARF_DECK + 0.3, m.pos.y + m.vel.y * dt)
+      m.pos.z += m.vel.z * dt
+      m.yaw = Math.hypot(m.vel.x, m.vel.z) > 2 ? Math.atan2(-m.vel.x, -m.vel.z) : m.yaw
+      cx += m.pos.x
+      cz += m.pos.z
+    })
+    // announce arrival on station at a tasked site
+    if (tgt.pos && !this.swarmOnStation) {
+      const d = Math.hypot(cx / 8 - tgt.pos.x, cz / 8 - tgt.pos.z)
+      // 30 m: inside the 28 m orbit ring's settled centroid, but outside the
+      // spawn apron's 32 m offset from the coal terminal — no instant trigger
+      if (d < 30) {
+        this.swarmOnStation = true
+        this.swarmVisited.add(tgt.id)
+        this.say(`SWARM ON STATION — ${tgt.label}`, 2.5)
+      }
+    }
+  }
+
   /** the demo leader's flight plan: per-phase waypoints over open water */
   private static SWARM_ROUTE: Record<string, V3[]> = {
     form: [{ x: -70, y: 30, z: -70 }],
@@ -765,6 +845,7 @@ export class Sim {
   coachHint(): string {
     const s = this.state
     if (this.scenarioId === 'swarmdemo') return ''
+    // (swarm command keeps the standard coaching, plus a tasking hint below)
     if (this.t > 150 || this.result) return ''
     if (!this.coachClimbed) {
       if (!s.landed && s.pos.y - this.env.groundAt(s.pos.x, s.pos.z) > 3) this.coachClimbed = true
@@ -777,6 +858,9 @@ export class Sim {
     if (this.cfg.mode === 'race' && this.race && !this.race.started) {
       return 'FLY THROUGH THE GLOWING RING TO START — FOLLOW THE ORANGE ARROW'
     }
+    if (this.cfg.mode === 'free' && this.scenarioId === 'swarmops' && this.swarmTaskings === 0) {
+      return 'PRESS  2 3 4 5  TO SEND THE SWARM TO A SITE  ·  1  RECALLS IT'
+    }
     if (this.cfg.mode === 'intercept' && this.identified.size + this.shadowed.size === 0 && this.enemies.every((e) => !e.captured)) {
       const near = this.enemies.some((e) => Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) < 150)
       if (!near) return 'THE RADAR (BOTTOM RIGHT) POINTS TO THE CONTACTS — FLY AT A DOT'
@@ -786,6 +870,12 @@ export class Sim {
 
   /** the HUD's live objective checklist, one entry per step of the mode */
   objectiveSteps(): Array<{ label: string; state: 'done' | 'now' | 'todo' }> {
+    if (this.cfg.mode === 'free' && this.scenarioId === 'swarmops') {
+      return SWARM_TARGETS.map((tg, i) => ({
+        label: `${i + 1} · ${tg.label}`,
+        state: i === this.swarmTask ? 'now' : this.swarmVisited.has(tg.id) ? 'done' : 'todo',
+      }))
+    }
     if (this.cfg.mode === 'free' && this.scenarioId === 'swarmdemo') {
       return SWARM_PHASES.map((ph, i) => ({
         label: ph.label,
@@ -909,7 +999,11 @@ export class Sim {
       else if (this.def.id === 'clydesdale') objectives.push(`${this.shadowed.size} of ${N} contacts shadowed at visual range`)
       else objectives.push(`${captures} of ${N} hostile contacts captured`)
     }
-    if (this.cfg.mode === 'free' && this.scenarioId === 'swarmdemo') {
+    if (this.cfg.mode === 'free' && this.scenarioId === 'swarmops') {
+      objectives.push(`${this.swarmTaskings} swarm tasking${this.swarmTaskings === 1 ? '' : 's'} issued`)
+      objectives.push(`${this.swarmVisited.size} of ${SWARM_TARGETS.length - 1} sites covered by the swarm`)
+      objectives.push(`${(this.distance / 1000).toFixed(1)} km flown by the command aircraft`)
+    } else if (this.cfg.mode === 'free' && this.scenarioId === 'swarmdemo') {
       objectives.push('nine-airframe coordinated demonstration flown by the flight system')
       objectives.push('formation, transit, area search, perimeter orbit and recovery shown')
       objectives.push(`${(this.distance / 1000).toFixed(1)} km flown by the lead aircraft`)
@@ -953,6 +1047,8 @@ export class Sim {
     const gusty = this.cfg.weather === 'gusty'
     if (this.scenarioId === 'swarmdemo')
       return 'One operator, nine airframes — formation, search and perimeter security flown entirely by the flight system. Swarm coordination is a software feature, not a head-count.'
+    if (this.scenarioId === 'swarmops')
+      return 'You flew one aircraft and commanded eight more with single keystrokes — tasking a Hunter swarm is an instruction, not a piloting job.'
     switch (this.cfg.drone) {
       case 'kestrel':
         if (this.identified.size >= 2)

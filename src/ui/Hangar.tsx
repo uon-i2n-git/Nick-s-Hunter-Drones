@@ -210,6 +210,7 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
       </main>
 
       <footer>
+        <div className="modeblurb">{activeScenario.blurb}</div>
         <div className="bar">
           <div className="group">
             <label>Mode</label>
@@ -245,7 +246,6 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
               ))}
             </div>
           </div>
-          <div className="modeblurb">{activeScenario.blurb}</div>
           <button className="start" onClick={onLaunch}>
             Launch
           </button>

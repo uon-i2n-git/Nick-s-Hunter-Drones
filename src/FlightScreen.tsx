@@ -16,6 +16,7 @@ const GAME_CODES = new Set([
   'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyC', 'KeyX',
   'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'ShiftLeft', 'ShiftRight', 'Tab', 'KeyF', 'KeyR', 'KeyH', 'Escape',
+  'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5',
 ])
 
 export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
@@ -48,6 +49,7 @@ export function FlightScreen({ cfg, onExit, onReport, onRestart }: Props) {
       keysRef.current[e.code] = true
       if (e.repeat) return
       if (e.code === 'KeyF') sim.requestAbility()
+      if (/^Digit[1-5]$/.test(e.code)) sim.commandSwarm(Number(e.code[5]) - 1)
       if (e.code === 'Tab') camModeRef.current = (camModeRef.current + 1) % 3
       if (e.code === 'KeyR') onRestart()
       if (e.code === 'Escape') onExit()
