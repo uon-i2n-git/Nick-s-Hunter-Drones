@@ -173,7 +173,6 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
   }, [cfg, setCfg, onLaunch])
 
   const modes: Array<[Mode, string]> = [
-    ['free', 'Demo'],
     ['race', 'Race'],
     ['intercept', 'Intercept'],
   ]
@@ -213,6 +212,20 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
         <div className="modeblurb">{activeScenario.blurb}</div>
         <div className="bar">
           <div className="group">
+            <label>Scenario</label>
+            <div className="seg">
+              {SCENARIOS.free.map((sc) => (
+                <button
+                  key={sc.id}
+                  className={cfg.mode === 'free' && activeScenario.id === sc.id ? 'on' : ''}
+                  onClick={() => setCfg({ ...cfg, mode: 'free', scenario: sc.id })}
+                >
+                  {sc.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="group">
             <label>Mode</label>
             <div className="seg">
               {modes.map(([m, label]) => (
@@ -226,16 +239,18 @@ export function Hangar({ cfg, setCfg, onLaunch }: Props) {
               ))}
             </div>
           </div>
-          <div className="group">
-            <label>Scenario</label>
-            <div className="seg">
-              {scenarios.map((sc) => (
-                <button key={sc.id} className={activeScenario.id === sc.id ? 'on' : ''} onClick={() => setCfg({ ...cfg, scenario: sc.id })}>
-                  {sc.label}
-                </button>
-              ))}
+          {cfg.mode === 'race' && (
+            <div className="group">
+              <label>Course</label>
+              <div className="seg">
+                {SCENARIOS.race.map((sc) => (
+                  <button key={sc.id} className={activeScenario.id === sc.id ? 'on' : ''} onClick={() => setCfg({ ...cfg, scenario: sc.id })}>
+                    {sc.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
           <div className="group">
             <label>Conditions</label>
             <div className="seg">

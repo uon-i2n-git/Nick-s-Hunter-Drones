@@ -19,8 +19,8 @@ class Damp3 {
   cur = new THREE.Vector3()
   vel = new THREE.Vector3()
   constructor(readonly smoothTime: number) {}
-  update(target: THREE.Vector3, dt: number) {
-    const omega = 2 / this.smoothTime
+  update(target: THREE.Vector3, dt: number, smoothTime = this.smoothTime) {
+    const omega = 2 / smoothTime
     const x = omega * dt
     const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
     for (const k of ['x', 'y', 'z'] as const) {
@@ -68,6 +68,7 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
   // the chase cam follows smoothed YAW only — deriving it from the tilted
   // forward vector made hard manoeuvres whip the whole frame around
   const camYaw = useRef(0)
+  const spreadS = useRef(14) // smoothed formation spread — raw max() jumps between mates
   const tmpE = useMemo(() => new THREE.Euler(), [])
 
   // player drone mesh
@@ -256,12 +257,15 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     const dronePos = drone ? drone.position : tmpV2
     // smoothed heading: pure yaw from the quaternion, low-passed, so pitch
     // and roll (punch tilt, braking) never swing the camera
+    const isSwarmDemo = sim.scenarioId === 'swarmdemo'
     if (drone) {
       const targetYaw = tmpE.setFromQuaternion(drone.quaternion, 'YXZ').y
       let dYaw = targetYaw - camYaw.current
       while (dYaw > Math.PI) dYaw -= Math.PI * 2
       while (dYaw < -Math.PI) dYaw += Math.PI * 2
-      camYaw.current += dYaw * Math.min(1, delta * 8)
+      // the demo autopilot's bang-bang steering jitters the lead's yaw; at
+      // 60-90 m framing range that sway is metres wide, so follow far slower
+      camYaw.current += dYaw * Math.min(1, delta * (isSwarmDemo ? 1.2 : 8))
     }
     const cfx = -Math.sin(camYaw.current)
     const cfz = -Math.cos(camYaw.current)
@@ -277,7 +281,6 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
     prevMode.current = mode
     if (mode === 0 && drone) {
       const speed = Math.hypot(sim.state.vel.x, sim.state.vel.z)
-      const isSwarmDemo = sim.scenarioId === 'swarmdemo'
       let aimX = dronePos.x
       let aimY = dronePos.y + 0.5
       let aimZ = dronePos.z
@@ -301,14 +304,17 @@ export function GameScene({ sim, keysRef, camModeRef, onHud }: Props) {
         cz /= n
         let spread = Math.hypot(dronePos.x - cx, dronePos.z - cz)
         for (const m of sim.swarm) spread = Math.max(spread, Math.hypot(m.pos.x - cx, m.pos.z - cz))
+        // the raw max() flicks between mates frame to frame — ease it
+        spreadS.current += (spread - spreadS.current) * Math.min(1, delta * 1.5)
         aimX = cx
         aimY = cy + 1
         aimZ = cz
-        dist = Math.min(125, spread * 1.35 + 16)
-        height = Math.min(34, spread * 0.45 + 8)
+        dist = Math.min(125, spreadS.current * 1.35 + 16)
+        height = Math.min(34, spreadS.current * 0.45 + 8)
       }
       const target = tmpV2.set(aimX - cfx * dist, aimY + height - (isSwarmDemo ? 1 : 0.5), aimZ - cfz * dist)
-      camera.position.copy(camDamp.update(target, delta))
+      // the formation shot rides a much softer damp than the chase cam
+      camera.position.copy(camDamp.update(target, delta, isSwarmDemo ? 0.55 : 0.15))
       // never let the chase cam sink into a deck or hillside
       const floor = sim.env.groundAt(camera.position.x, camera.position.z) + 1.1
       if (camera.position.y < floor) {
@@ -705,7 +711,7 @@ function buildHud(sim: Sim, camMode: number, lastRanges: Map<string, { r: number
         : sim.scenarioId === 'swarmdemo'
           ? 'SWARM DEMONSTRATION — THE FLIGHT SYSTEM HAS COMMAND.\nSIT BACK · TAB CHANGES CAMERA · ESC EXITS.'
           : sim.scenarioId === 'swarmops'
-            ? 'TEAM SWARM — YOU FLY, THE SWARM WORKS.\nKEYS 1-5 TASK IT TO THE SITES BELOW.'
+            ? 'SWARM COMMAND — YOU FLY, THE SWARM WORKS.\nKEYS 1-5 TASK IT TO THE SITES BELOW.'
             : 'DEMO FLIGHT — WORK THROUGH THE CARD BELOW.'
   } else if (sim.cfg.mode === 'race') {
     objective = sim.race!.started
