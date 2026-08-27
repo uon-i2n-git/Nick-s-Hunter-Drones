@@ -9,7 +9,7 @@ interface Props {
   onHangar: () => void
 }
 
-const MODE_NAME = { free: 'Free Flight', race: 'Ring Course', intercept: 'Intercept' } as const
+const MODE_NAME = { free: 'Demo', race: 'Ring Course', intercept: 'Intercept' } as const
 const WX_NAME = { clear: 'Clear', gusty: 'Gusty Southerly' } as const
 
 export function ReportScreen({ report, onRetry, onHangar }: Props) {
