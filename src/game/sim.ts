@@ -591,7 +591,7 @@ export class Sim {
     }
     if (!this.coachMoved) {
       if (Math.hypot(s.vel.x, s.vel.z) > 7) this.coachMoved = true
-      else return 'HOLD  W  TO FLY FORWARD  ·  Q / E  TO TURN'
+      else return 'HOLD  W / ↑  TO FLY FORWARD  ·  Q E / ← →  TO TURN'
     }
     if (this.cfg.mode === 'race' && this.race && !this.race.started) {
       return 'FLY THROUGH THE GLOWING RING TO START — FOLLOW THE ORANGE ARROW'
